@@ -1,0 +1,61 @@
+name: Build nut_webgui for Astra Linux
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+    paths:
+      - 'nut_webgui/**'
+      - 'crates/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'Makefile'
+      - 'makefiles/**'
+      - 'configure.sh'
+      - '.github/workflows/build-musl.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            musl-tools \
+            make \
+            jq \
+            nodejs \
+            npm
+
+      - name: Build
+        run: |
+          make help
+          make build TARGET=x86-64-musl
+
+      - name: Locate build output
+        run: |
+          find bin -type f -maxdepth 4 -ls
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nut-webgui-x86-64-musl
+          path: bin/
+          if-no-files-found: error
+          retention-days: 7
