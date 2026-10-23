@@ -43,6 +43,13 @@ jobs:
             nodejs \
             npm
 
+      - name: Diagnose and install npm dependencies
+        working-directory: crates/nut_webgui_client
+        run: |
+          node --version
+          npm --version
+          npm install --verbose
+
       - name: Build
         run: |
           make help
