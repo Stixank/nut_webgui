@@ -48,7 +48,7 @@ jobs:
         run: |
           node --version
           npm --version
-          npm install --verbose
+          npm install --legacy-peer-deps
 
       - name: Build
         run: |
