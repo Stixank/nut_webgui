@@ -51,6 +51,8 @@ jobs:
           npm install --legacy-peer-deps
 
       - name: Build
+        env:
+          npm_config_legacy_peer_deps: "true"
         run: |
           make help
           make build TARGET=x86-64-musl
