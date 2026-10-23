@@ -50,21 +50,26 @@ jobs:
           npm --version
           npm install --legacy-peer-deps
 
-      - name: Build
+      - name: Build musl binary
         env:
           npm_config_legacy_peer_deps: "true"
         run: |
           make help
-          make build TARGET=x86-64-musl
+          make build-all TARGETS=x86-64-musl ENABLE_X86_64_MUSL=1
 
-      - name: Locate build output
+      - name: Verify binary
         run: |
-          find bin -type f -maxdepth 4 -ls
+          file bin/artifact/x86-64-musl/nut_webgui
+          readelf -l bin/artifact/x86-64-musl/nut_webgui
+          if readelf -l bin/artifact/x86-64-musl/nut_webgui | grep -q 'INTERP'; then
+            echo "ERROR: binary has a dynamic interpreter"
+            exit 1
+          fi
 
-      - name: Upload build artifacts
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: nut-webgui-x86-64-musl
-          path: bin/
+          path: bin/artifact/x86-64-musl/nut_webgui
           if-no-files-found: error
           retention-days: 7
