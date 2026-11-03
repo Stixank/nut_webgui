@@ -47,12 +47,13 @@ pub async fn get(
   let mut graph_builder = TopologyGraphBuilder::new();
 
   for (namespace, upsd) in state.upsd_servers.iter() {
-    let state = upsd.daemon_state.read().await;
+    let daemon_state = upsd.daemon_state.read().await;
     graph_builder.add_upsd_server(
       namespace.clone(),
       upsd.config.addr.clone(),
       upsd.config.port,
-      state.deref(),
+      daemon_state.deref(),
+      &state.config.display,
     );
   }
 

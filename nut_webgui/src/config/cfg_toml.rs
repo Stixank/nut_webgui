@@ -1,5 +1,5 @@
 use super::{
-  ConfigLayer, ServerConfig, UpsdConfig, error::ConfigError, tls_mode::TlsMode, uri_path::UriPath,
+  ConfigLayer, DisplayConfig, ServerConfig, UpsdConfig, error::ConfigError, tls_mode::TlsMode, uri_path::UriPath,
   utils::override_opt_field,
 };
 use core::{net::IpAddr, str};
@@ -22,6 +22,7 @@ struct TracingLevelVisitor;
 pub struct ServerTomlArgs {
   pub auth: Option<AuthConfigSection>,
   pub default_theme: Option<Box<str>>,
+  pub display: Option<DisplayConfig>,
   pub http_server: Option<HttpServerConfigSection>,
   pub log_level: Option<LogLevel>,
   pub upsd: Option<HashMap<Box<str>, UpsdConfigSection>>,
@@ -114,6 +115,9 @@ impl ServerTomlArgs {
 impl ConfigLayer for ServerTomlArgs {
   fn apply_layer(self, mut config: ServerConfig) -> Result<ServerConfig, ConfigError> {
     override_opt_field!(config.default_theme, self.default_theme);
+    if let Some(display) = self.display {
+      config.display = display;
+    }
     override_opt_field!(config.log_level, inner_value: self.log_level.map(|val| val.0));
 
     if let Some(upsd_section) = self.upsd

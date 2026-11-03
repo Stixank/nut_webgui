@@ -32,6 +32,7 @@ create_named_enum!(
 struct DeviceTableRow<'a> {
   id: String,
   device: &'a DeviceEntry,
+  attached_clients_count: usize,
 }
 
 #[derive(Deserialize)]
@@ -77,6 +78,11 @@ async fn render_device_rows(
         normalize_id(&upsd.namespace)
       ),
       device,
+      attached_clients_count: device
+        .attached
+        .iter()
+        .filter(|client| !state.config.display.is_client_hidden(client.addr, &upsd.config.addr))
+        .count(),
     })
     .collect();
 

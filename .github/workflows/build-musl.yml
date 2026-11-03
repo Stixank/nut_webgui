@@ -1,0 +1,95 @@
+name: Build nut_webgui for Astra Linux
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/hide-attached-clients
+    paths:
+      - 'nut_webgui/**'
+      - 'crates/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'Makefile'
+      - 'makefiles/**'
+      - 'configure.sh'
+      - '.github/workflows/build-musl.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            musl-tools \
+            make \
+            jq \
+            nodejs \
+            npm \
+            binutils
+
+      - name: Diagnose and install npm dependencies
+        working-directory: crates/nut_webgui_client
+        run: |
+          node --version
+          npm --version
+          npm install --legacy-peer-deps
+
+      - name: Build musl binary
+        env:
+          npm_config_legacy_peer_deps: "true"
+        run: |
+          make help
+          make build-all TARGETS=x86-64-musl ENABLE_X86_64_MUSL=1
+
+      - name: Verify binary is static and compatible with Astra Linux 1.7
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN="bin/artifact/x86-64-musl/nut_webgui"
+
+          test -s "$BIN"
+          file "$BIN"
+          readelf -h "$BIN"
+
+          # A static musl executable must not request the glibc/musl dynamic loader.
+          if readelf -l "$BIN" | grep -q 'INTERP'; then
+            echo "ERROR: binary contains PT_INTERP and is dynamically linked"
+            readelf -l "$BIN"
+            exit 1
+          fi
+
+          # It must not have dynamically-needed shared libraries.
+          if readelf -d "$BIN" 2>/dev/null | grep -q '(NEEDED)'; then
+            echo "ERROR: binary has DT_NEEDED shared-library dependencies"
+            readelf -d "$BIN"
+            exit 1
+          fi
+
+          echo "OK: no ELF interpreter and no DT_NEEDED dependencies"
+          echo "GLIBC requirements (informational):"
+          (strings "$BIN" | grep -oE 'GLIBC_[0-9.]+' | sort -Vu) || true
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nut-webgui-x86-64-musl
+          path: bin/artifact/x86-64-musl/nut_webgui
+          if-no-files-found: error
+          retention-days: 7

@@ -69,6 +69,20 @@ version = "1"
 # allow_anonymous_metrics = false
 
 ## -----------------------------------------------------------------------------
+
+## Display settings (presentation only; does not change NUT connections).
+## hidden_clients: Client IPs hidden in Attached Clients and topology on all servers.
+## visible_clients_on_servers: Exceptions that show a hidden client for a server IP.
+## -----------------------------------------------------------------------------
+
+# [display]
+# hidden_clients = ["192.0.2.10"]
+# visible_clients_on_servers = [
+#   { client = "192.0.2.10", server = "192.0.2.20" }
+# ]
+
+## -----------------------------------------------------------------------------
+
 ## UPSD connection settings.
 ## Multiple connection can be defined under the `upsd` table. Table keys are
 ## used as connection namespace/identifier.
