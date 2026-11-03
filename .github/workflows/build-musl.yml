@@ -2,8 +2,21 @@ name: Build nut_webgui for Astra Linux
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'nut_webgui/**'
+      - 'crates/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'Makefile'
+      - 'makefiles/**'
+      - 'configure.sh'
+      - '.github/workflows/build-musl.yml'
   push:
     branches:
+      - master
       - feature/hide-attached-clients
     paths:
       - 'nut_webgui/**'
@@ -36,12 +49,12 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            musl-tools \
-            make \
-            jq \
-            nodejs \
-            npm \
+          sudo apt-get install -y \\
+            musl-tools \\
+            make \\
+            jq \\
+            nodejs \\
+            npm \\
             binutils
 
       - name: Diagnose and install npm dependencies
