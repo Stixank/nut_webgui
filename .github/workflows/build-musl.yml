@@ -49,12 +49,12 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \\
-            musl-tools \\
-            make \\
-            jq \\
-            nodejs \\
-            npm \\
+          sudo apt-get install -y \
+            musl-tools \
+            make \
+            jq \
+            nodejs \
+            npm \
             binutils
 
       - name: Diagnose and install npm dependencies
