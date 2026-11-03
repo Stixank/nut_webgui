@@ -4,6 +4,7 @@ use self::{tls_mode::TlsMode, uri_path::UriPath};
 use core::net::{IpAddr, Ipv4Addr};
 use std::{collections::HashMap, num::NonZeroUsize, path::PathBuf};
 use tracing::level_filters::LevelFilter;
+use serde::Deserialize;
 
 mod utils;
 
@@ -43,6 +44,26 @@ pub struct ServerConfig {
 
   /// Authentication scheme configurations
   pub auth: AuthConfig,
+
+  /// Presentation-only display settings
+  pub display: DisplayConfig,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct DisplayConfig {
+  /// Client IPs hidden from the web interface on all NUT servers.
+  #[serde(default)]
+  pub hidden_clients: Vec<IpAddr>,
+
+  /// Per-server exceptions that make a globally hidden client visible.
+  #[serde(default)]
+  pub visible_clients_on_servers: Vec<VisibleClientOnServer>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct VisibleClientOnServer {
+  pub client: IpAddr,
+  pub server: IpAddr,
 }
 
 #[derive(Debug)]
@@ -150,7 +171,22 @@ impl Default for ServerConfig {
       server_key: rand_server_key_256bit(),
       upsd: Default::default(),
       auth: Default::default(),
+      display: Default::default(),
     }
+  }
+}
+
+impl DisplayConfig {
+  /// Returns true when a client should be omitted from presentation for this server.
+  pub fn is_client_hidden(&self, client: IpAddr, server: &str) -> bool {
+    if !self.hidden_clients.contains(&client) {
+      return false;
+    }
+
+    let server_ip = server.parse::<IpAddr>().ok();
+    !self.visible_clients_on_servers.iter().any(|rule| {
+      rule.client == client && server_ip == Some(rule.server)
+    })
   }
 }
 
@@ -196,6 +232,7 @@ impl core::fmt::Debug for ServerConfig {
       .field("http_server", &self.http_server)
       .field("upsd", &self.upsd)
       .field("auth", &self.auth)
+      .field("display", &self.display)
       .finish()
   }
 }

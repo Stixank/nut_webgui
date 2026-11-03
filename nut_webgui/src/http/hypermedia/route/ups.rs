@@ -10,7 +10,7 @@ use crate::{
       unit::UnitDisplay,
     },
   },
-  state::{DescriptionKey, DeviceEntry, ServerState, VarDetail},
+  state::{ClientInfo, DescriptionKey, DeviceEntry, ServerState, VarDetail},
 };
 use askama::Template;
 use axum::{
@@ -107,6 +107,7 @@ enum UpsPageTabTemplate<'a> {
 
   #[template(path = "ups/tab_clients.html")]
   Clients {
+    clients: Vec<&'a ClientInfo>,
     device: &'a DeviceEntry,
     namespace: &'a str,
     upsd_config: &'a UpsdConfig,
@@ -175,10 +176,17 @@ pub async fn get(
         device: device,
         namespace: &namespace,
       },
-      TabName::Clients => UpsPageTabTemplate::Clients {
-        device: device,
-        namespace: &namespace,
-        upsd_config: &upsd.config,
+      TabName::Clients => {
+        let clients = device.attached.iter()
+          .filter(|client| !state.config.display.is_client_hidden(client.addr, &upsd.config.addr))
+          .collect();
+
+        UpsPageTabTemplate::Clients {
+          clients,
+          device: device,
+          namespace: &namespace,
+          upsd_config: &upsd.config,
+        }
       },
       TabName::Rw => {
         let inputs = device

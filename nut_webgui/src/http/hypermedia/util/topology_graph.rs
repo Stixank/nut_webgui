@@ -5,6 +5,7 @@ use crate::{
     unit::{Percentage, RemainingSeconds, Voltage},
   },
   state::{ConnectionStatus, DaemonState, DeviceEntry, UpsdNamespace},
+  config::DisplayConfig,
 };
 use std::{collections::BTreeMap, net::IpAddr, sync::Arc};
 use upsmc::{UpsName, VarName, ups_status::UpsStatus};
@@ -144,6 +145,7 @@ impl TopologyGraphBuilder {
     address: Box<str>,
     port: u16,
     upsd_state: &DaemonState,
+    display: &DisplayConfig,
   ) {
     let mut server_node = NutServerNode {
       id: self.servers.len() + 1,
@@ -155,7 +157,7 @@ impl TopologyGraphBuilder {
     };
 
     for device in upsd_state.devices.values() {
-      _ = self.add_device(device, &mut server_node);
+      _ = self.add_device(device, &mut server_node, display);
     }
 
     _ = self
@@ -173,7 +175,7 @@ impl TopologyGraphBuilder {
     }
   }
 
-  fn add_device(&mut self, device: &DeviceEntry, server_node: &mut NutServerNode) {
+  fn add_device(&mut self, device: &DeviceEntry, server_node: &mut NutServerNode, display: &DisplayConfig) {
     let key = DeviceId {
       name: device.name.to_owned(),
       namespace: server_node.namespace.clone(),
@@ -219,6 +221,10 @@ impl TopologyGraphBuilder {
 
         let node_id = device_node.get_id();
         for client in device.attached.iter() {
+          if display.is_client_hidden(client.addr, &server_node.address) {
+            continue;
+          }
+
           let target_id = if client.addr.is_loopback() {
             server_node
               .power_status
