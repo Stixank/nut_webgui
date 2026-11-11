@@ -29,6 +29,10 @@ pub struct ServerConfig {
   /// Web GUI default theme
   pub default_theme: Option<Box<str>>,
 
+  /// Client IPs ignored on all UPSD connections.
+  /// Merged into every `UpsdConfig::ignore_clients` after all config layers are applied.
+  pub ignore_clients: Vec<IpAddr>,
+
   /// Logging level
   pub log_level: LevelFilter,
 
@@ -84,6 +88,9 @@ pub struct UpsdConfig {
   /// side by side in one group, rows are drawn from the smallest number to the largest.
   /// Default is `0`.
   pub row: u16,
+  /// Attached client IPs that are dropped during device/state sync.
+  /// Ignored clients never appear in UI, API, or WebSocket events.
+  pub ignore_clients: Vec<IpAddr>,
 }
 
 #[derive(Debug)]
@@ -101,6 +108,12 @@ impl AuthConfig {
 impl UpsdConfig {
   pub fn get_socket_addr(&self) -> String {
     format!("{address}:{port}", address = self.addr, port = self.port)
+  }
+
+  /// Returns true if the client IP is in the ignore list.
+  #[inline]
+  pub fn is_client_ignored(&self, client: &IpAddr) -> bool {
+    self.ignore_clients.contains(client)
   }
 }
 
@@ -134,6 +147,7 @@ impl Default for UpsdConfig {
   fn default() -> Self {
     Self {
       addr: "localhost".into(),
+      ignore_clients: Vec::new(),
       max_conn: NonZeroUsize::new(4).expect("static non-zero max_conn is provided as default"),
       pass: None,
       poll_freq: 30,
@@ -152,6 +166,7 @@ impl Default for ServerConfig {
       config_file: None,
       default_theme: None,
       http_server: Default::default(),
+      ignore_clients: Vec::new(),
       log_level: LevelFilter::INFO,
       server_key: rand_server_key_256bit(),
       upsd: Default::default(),
@@ -189,6 +204,7 @@ impl core::fmt::Debug for UpsdConfig {
       .field("max_conn", &self.max_conn)
       .field("tls_mode", &self.tls_mode)
       .field("row", &self.row)
+      .field("ignore_clients", &self.ignore_clients)
       .finish()
   }
 }
@@ -198,6 +214,7 @@ impl core::fmt::Debug for ServerConfig {
     f.debug_struct("ServerConfig")
       .field("config_file", &self.config_file)
       .field("default_theme", &self.default_theme)
+      .field("ignore_clients", &self.ignore_clients)
       .field("log_level", &self.log_level)
       .field("server_key", &"******")
       .field("http_server", &self.http_server)
