@@ -10,6 +10,12 @@
 - Every daemon from the config gets a grayed-out placeholder UPS on the topology
   page until it is online, so the power chain stays visible.
 
+### Fixed
+- A new connection to a UPS daemon is now limited to 5 seconds (or `poll_freq`,
+  if it is shorter), TLS handshake included. A powered-off or unreachable
+  daemon was reported as lost only after the connect timeout of the operating
+  system, which is about 2 minutes on Linux.
+
 ## v0.10.5 - October 23, 2026
 
 ### Fixed
