@@ -1,3 +1,15 @@
+## Unreleased
+
+### Added
+- Topology page can place UPS daemons in multiple rows. The new `row` option of
+  `[upsd.<name>]` sections *(default `0`)* sets the row of a daemon. Daemons
+  with the same row are drawn side by side in one frame with a `Row N` heading.
+- When the connection to a UPS daemon is lost, the topology page keeps drawing
+  the daemon and the last known devices and clients as grayed-out nodes marked
+  with `connection lost`, instead of removing them.
+- Every daemon from the config gets a grayed-out placeholder UPS on the topology
+  page until it is online, so the power chain stays visible.
+
 ## v0.10.5 - October 23, 2026
 
 ### Fixed

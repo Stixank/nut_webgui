@@ -24,11 +24,13 @@ max_connection = 4
 poll_freq = 30
 poll_interval = 2
 tls_mode = "disable"
+row = 0
 
 [upsd.reactor]
 address = "10.0.12.10"
 username = "observer"
 password = "AbsoluteSecurity"
+row = 1
 
 [auth]
 users_file = "/etc/nut_webgui/users.toml"

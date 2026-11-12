@@ -79,6 +79,11 @@ pub struct UpsdConfig {
 
   /// UPSD starts with TLS
   pub tls_mode: TlsMode,
+
+  /// Row number of this UPSD in the topology view. UPSDs with the same row number are drawn
+  /// side by side in one group, rows are drawn from the smallest number to the largest.
+  /// Default is `0`.
+  pub row: u16,
 }
 
 #[derive(Debug)]
@@ -136,6 +141,7 @@ impl Default for UpsdConfig {
       port: 3493,
       tls_mode: TlsMode::Disable,
       user: None,
+      row: 0,
     }
   }
 }
@@ -182,6 +188,7 @@ impl core::fmt::Debug for UpsdConfig {
       .field("poll_interval", &self.poll_interval)
       .field("max_conn", &self.max_conn)
       .field("tls_mode", &self.tls_mode)
+      .field("row", &self.row)
       .finish()
   }
 }

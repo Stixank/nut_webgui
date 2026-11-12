@@ -151,3 +151,15 @@ version = "1"
 ## -----------------------------------------------------------------------------
 
 # tls_mode = "disable"
+
+## -----------------------------------------------------------------------------
+## Row: Row number of this UPSD in the topology page. UPSDs with the same row
+## number are drawn side by side inside one framed group, rows are drawn from
+## the smallest number to the largest. Each row gets a `Row N` heading.
+## Default is 0.
+##
+## Example: `row = 1` draws this UPSD in a second row below the UPSDs that
+## have `row = 0`.
+## -----------------------------------------------------------------------------
+
+# row = 0
