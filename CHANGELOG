@@ -9,6 +9,8 @@
   with `connection lost`, instead of removing them.
 - Every daemon from the config gets a grayed-out placeholder UPS on the topology
   page until it is online, so the power chain stays visible.
+- The devices of a daemon that lost its connection stay in the device list as
+  grayed-out rows marked `connection lost`, instead of disappearing.
 
 ### Fixed
 - A new connection to a UPS daemon is now limited to 5 seconds (or `poll_freq`,
