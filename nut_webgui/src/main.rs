@@ -24,7 +24,13 @@ use crate::{
   },
 };
 use rustls_platform_verifier::BuilderVerifierExt;
-use std::{collections::HashMap, panic, process::ExitCode, sync::Arc, time::Duration};
+use std::{
+  collections::{BTreeMap, HashMap},
+  panic,
+  process::ExitCode,
+  sync::Arc,
+  time::Duration,
+};
 use tokio::{
   net::TcpListener,
   select,
@@ -37,7 +43,7 @@ use tracing_subscriber::{
   reload::{self, Handle},
 };
 use upsmc::{
-  client::{NutPoolClient, NutPoolClientBuilder},
+  client::NutPoolClient,
   rustls::{ClientConfig, pki_types::ServerName},
 };
 
@@ -138,7 +144,7 @@ async fn start_server(config: ServerConfig) -> Result<(), Box<dyn core::error::E
   let event_channel = EventChannel::new(256);
   let message_broadcast = MessageBroadcast::new(256);
   let auth_user_store = create_user_store(&config)?;
-  let mut upsd_servers = HashMap::new();
+  let mut upsd_servers = BTreeMap::new();
   let mut openmetrics = prometheus_client::registry::Registry::with_prefix("nutwg");
   let mut bg_services = BackgroundServiceRunner::new().with_max_timeout(Duration::from_secs(10));
 
@@ -272,16 +278,16 @@ fn create_pool(
     }
   };
 
-  let mut builder = NutPoolClientBuilder::new(config.get_socket_addr().into())
+  let mut client = NutPoolClient::new(config.get_addr())
     .with_timeout(Duration::from_secs(config.poll_freq))
     .with_limit(config.max_conn);
 
   if let Some(tls_config) = tls_client_conf {
     let server_name = ServerName::try_from(config.addr.as_ref().to_owned())?;
-    builder = builder.with_tls(server_name, Arc::new(tls_config));
+    client = client.with_tls(server_name, Arc::new(tls_config));
   }
 
-  Ok(builder.build())
+  Ok(client.open())
 }
 
 fn create_user_store(

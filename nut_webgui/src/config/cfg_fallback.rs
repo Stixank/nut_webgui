@@ -7,9 +7,13 @@ pub struct FallbackArgs;
 impl ConfigLayer for FallbackArgs {
   fn apply_layer(self, mut config: ServerConfig) -> Result<ServerConfig, ConfigError> {
     if config.upsd.is_empty() {
-      config
-        .upsd
-        .insert(DEFAULT_UPSD_KEY.into(), UpsdConfig::default());
+      let mut default_upsd = UpsdConfig::default();
+
+      if !config.ignore_clients.is_empty() {
+        default_upsd.ignore_clients = config.ignore_clients.clone();
+      }
+
+      config.upsd.insert(DEFAULT_UPSD_KEY.into(), default_upsd);
     }
 
     Ok(config)

@@ -14,7 +14,7 @@ use tokio::{select, task::JoinSet, time::interval, try_join};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
 use upsmc::{
-  UpsName, Value, VarName, VarType,
+  CmdName, UpsName, Value, VarName, VarType,
   client::{AsyncNutClient, NutPoolClient},
   response::{DaemonVer, ProtVer, UpsDevice},
   ups_status::UpsStatus,
@@ -105,10 +105,9 @@ impl BackgroundService for DeviceSyncService {
 
 impl DeviceSyncTask {
   pub async fn next(&self) -> Result<(), SyncTaskError> {
-    let mut events = EventBatch::new(self.state.namespace.clone());
-
     match self.diff_upsd().await {
       Ok(patch) => {
+        let mut events = EventBatch::new(self.state.namespace.clone());
         let mut write_lock = self.state.daemon_state.write().await;
 
         for entry in patch.added.into_iter() {
@@ -173,42 +172,41 @@ impl DeviceSyncTask {
       Err(err) => {
         let mut write_lock = self.state.daemon_state.write().await;
 
-        for device_name in write_lock.devices.keys() {
-          info!(
-            message = "device disconnected",
-            namespace = %self.state.namespace,
-            device = %device_name
-          );
-
-          events.removed_device(device_name.clone());
-        }
-
         if write_lock.status != ConnectionStatus::Dead {
+          let mut events = EventBatch::new(self.state.namespace.clone());
+
+          write_lock.status = ConnectionStatus::Dead;
+          write_lock.prot_ver = None;
+          write_lock.ver = None;
+          events.set_upsd_status(ConnectionStatus::Dead);
+
+          for (name, device) in write_lock.devices.iter_mut() {
+            if device.status != UpsStatus::NOCOMM {
+              events.status_change(name.clone(), device.status, UpsStatus::NOCOMM);
+            }
+
+            device.mark_as_dead_with(UpsStatus::NOCOMM);
+          }
+
+          write_lock.last_device_sync = Some(Utc::now());
+
           error!(
             message = "ups daemon is disconnected",
             namespace = %self.state.namespace,
             reason = %err
           );
 
-          write_lock.status = ConnectionStatus::Dead;
-          write_lock.prot_ver = None;
-          write_lock.ver = None;
-          events.set_upsd_status(ConnectionStatus::Dead);
+          _ = self
+            .event_channel
+            .send_batch(events)
+            .inspect_err(|send_err| {
+              warn!(
+                message = "unable to send system events",
+                namespace = %self.state.namespace,
+                reason = %send_err
+              );
+            });
         }
-
-        write_lock.devices.clear();
-        write_lock.last_device_sync = Some(Utc::now());
-
-        _ = self
-          .event_channel
-          .send_batch(events)
-          .inspect_err(|send_err| {
-            warn!(
-              message = "unable to send system events",
-              namespace = %self.state.namespace,
-              reason = %send_err
-            );
-          });
 
         Err(err)
       }
@@ -263,14 +261,16 @@ impl DeviceSyncTask {
     };
 
     let mut failure_count = 0;
-    let mut new_devices_task = JoinSet::from_iter(new_devices.into_iter().map(|dev| {
-      let client = self.state.connection_pool.clone();
-      Self::load_device_entry(client, dev)
-    }));
-    let mut recheck_task = JoinSet::from_iter(recheck_devices.into_iter().map(|dev| {
-      let client = self.state.connection_pool.clone();
-      Self::load_device_entry(client, dev)
-    }));
+    let mut new_devices_task = JoinSet::from_iter(
+      new_devices
+        .into_iter()
+        .map(|dev| Self::load_device_entry(dev, self.state.clone())),
+    );
+    let mut recheck_task = JoinSet::from_iter(
+      recheck_devices
+        .into_iter()
+        .map(|dev| Self::load_device_entry(dev, self.state.clone())),
+    );
 
     while let Some(result) = new_devices_task.join_next().await {
       match result {
@@ -341,23 +341,19 @@ impl DeviceSyncTask {
   }
 
   async fn load_device_entry(
-    client: NutPoolClient,
     device: UpsDevice,
+    state: Arc<UpsdState>,
   ) -> Result<DeviceEntry, DeviceLoadError> {
     let UpsDevice { ups_name, desc } = device;
-    let (vars, commands, clients, rw_vars) = join!(
-      client.list_var(&ups_name),
-      client.list_cmd(&ups_name),
-      Self::load_clients(client.clone(), &ups_name),
-      Self::load_rw_vars(client.clone(), &ups_name)
+    let (variables, commands, clients, rw_vars) = join!(
+      Self::load_vars(&ups_name, &state),
+      Self::load_cmds(&ups_name, &state),
+      Self::load_clients(&ups_name, &state),
+      Self::load_rw_vars(&ups_name, &state)
     );
 
-    let vars = vars.map_err(|err| DeviceLoadError {
-      inner: err,
-      name: ups_name.to_owned(),
-    })?;
-
-    let status = match vars.variables.get(VarName::UPS_STATUS) {
+    let variables = variables?;
+    let status = match variables.get(VarName::UPS_STATUS) {
       Some(value) => UpsStatus::from(value),
       _ => UpsStatus::default(),
     };
@@ -370,7 +366,7 @@ impl DeviceSyncTask {
           device = %&ups_name
         )
       })
-      .map_or_else(|_| Vec::new(), |v| v.cmds);
+      .unwrap_or_default();
 
     let attached = clients
       .inspect_err(|err| {
@@ -400,18 +396,22 @@ impl DeviceSyncTask {
       name: ups_name,
       rw_variables,
       status,
-      variables: vars.variables,
+      variables,
     })
   }
 
   async fn load_clients(
-    client: NutPoolClient,
     ups_name: &UpsName,
+    state: &UpsdState,
   ) -> Result<Vec<ClientInfo>, upsmc::error::Error> {
-    let client_list = client.list_client(ups_name).await?;
+    let client_list = state.connection_pool.list_client(ups_name).await?;
     let mut clients: Vec<ClientInfo> = Vec::with_capacity(client_list.ips.len());
 
     for ip in client_list.ips.into_iter() {
+      if state.config.ignore_clients.contains(&ip) {
+        continue;
+      }
+
       let name = if !ip.is_loopback() {
         lookup_ip(ip).map_or(None, |n| Some(n))
       } else {
@@ -424,16 +424,42 @@ impl DeviceSyncTask {
     Ok(clients)
   }
 
-  async fn load_rw_vars(
-    client: NutPoolClient,
+  async fn load_cmds(
     ups_name: &UpsName,
+    state: &UpsdState,
+  ) -> Result<Vec<CmdName>, upsmc::error::Error> {
+    state
+      .connection_pool
+      .list_cmd(ups_name)
+      .await
+      .map(|v| v.cmds)
+  }
+
+  async fn load_vars(
+    ups_name: &UpsName,
+    state: &UpsdState,
+  ) -> Result<UpsVariables, DeviceLoadError> {
+    state
+      .connection_pool
+      .list_var(ups_name)
+      .await
+      .map(|v| v.variables)
+      .map_err(|err| DeviceLoadError {
+        inner: err,
+        name: ups_name.to_owned(),
+      })
+  }
+
+  async fn load_rw_vars(
+    ups_name: &UpsName,
+    state: &UpsdState,
   ) -> Result<HashMap<VarName, VarDetail>, upsmc::error::Error> {
-    let rw_list = client.list_rw(ups_name).await?;
+    let rw_list = state.connection_pool.list_rw(ups_name).await?;
     let rw_details = join_all(
       rw_list
         .variables
         .into_iter()
-        .map(|(var_name, _)| Self::load_var_detail(client.clone(), &ups_name, var_name)),
+        .map(|(var_name, _)| Self::load_var_detail(&state.connection_pool, &ups_name, var_name)),
     )
     .await;
 
@@ -458,7 +484,7 @@ impl DeviceSyncTask {
   }
 
   async fn load_var_detail(
-    client: NutPoolClient,
+    client: &NutPoolClient,
     ups_name: &UpsName,
     var_name: VarName,
   ) -> Result<(VarName, VarDetail), upsmc::error::Error> {

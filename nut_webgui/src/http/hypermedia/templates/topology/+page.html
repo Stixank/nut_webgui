@@ -10,20 +10,19 @@
 <div class="bg-grid max-h-[calc(100dvh-112px)] overflow-hidden relative w-full">
   <div class="absolute bottom-0 flex flex-row justify-end max-w-96 right-0 tabs tabs-bottom tabs-lift tabs-sm z-10">
     <input
-        autocomplete="off"
-        aria-label="Legend"
-        checked="checked"
-        class="[--tab-bg:var(--color-base-300)] backdrop-blur-sm tab"
-        name="control_tab"
-        type="radio"
-      />
+      autocomplete="off"
+      aria-label="Legend"
+      class="[--tab-bg:var(--color-base-300)] backdrop-blur-sm tab"
+      name="control_tab"
+      type="radio"
+    />
     <div class="backdrop-blur-sm bg-base-300/60 p-2 tab-content">
       <table class="table table-xs">
         <tr>
           <td>
-             <div class="bg-base-300 border border-primary flex flex-row font-bold h-4 items-center justify-center rounded-full text-center text-lg w-4">
-                {%- call icons::get_ac_icon(16) -%}{%- endcall -%}
-              </div>
+            <div class="bg-base-300 border border-primary flex flex-row font-bold h-4 items-center justify-center rounded-full text-center text-lg w-4">
+              {%- call icons::get_ac_icon(16) -%}{%- endcall -%}
+            </div>
           </td>
           <td>AC Supply</td>
         </tr>
@@ -176,8 +175,9 @@
       </nut-attr-control>
     </div>
     <input
-      autocomplete="off"
       aria-label="Minimize"
+      autocomplete="off"
+      checked="checked"
       class="[--tab-bg:var(--color-base-300)] backdrop-blur-sm tab"
       name="control_tab"
       type="radio"
@@ -244,7 +244,7 @@
                   <span class="font-bold">:</span>
                   <nut-time-display
                     class="font-bold grow text-success {{rt.get_semantic_type().as_text()}}"
-                    value="{{rt.as_raw_value()}}"
+                    value="{{rt.get()}}"
                   >
                   </nut-time-display>
                 </div>
@@ -256,7 +256,7 @@
                   <div class="grow">
                     <nut-bar-gauge
                       class="h-6 w-full {{battery.get_semantic_type().as_bar_gauge()}}"
-                      value="{{battery.as_raw_value()}}"
+                      value="{{battery.get()}}"
                     >
                     </nut-bar-gauge>
                   </div>
@@ -273,7 +273,7 @@
                   <div class="grow">
                     <nut-bar-gauge
                       class="h-6 w-full {{load.get_semantic_type().as_bar_gauge()}}"
-                      value="{{load.as_raw_value()}}"
+                      value="{{load.get()}}"
                     >
                     </nut-bar-gauge>
                   </div>
@@ -293,33 +293,31 @@
             </div>
           </div>
         </nut-graph-node>
-        <nut-graph-node id="power_link_node_{{node_id}}">
-          <div class="bg-base-300 border-2 border-primary flex flex-row font-bold h-8 items-center justify-center rounded-full w-8">
-            {%- call icons::get_ac_icon(22) -%}{%- endcall -%}
-          </div>
-        </nut-graph-node>
-        <nut-graph-link
-          {% if device.status.has(UpsStatus::ON_BATTERY) || device.status.has(UpsStatus::BYPASS) -%}
-            class="animate-pulse edge-4 edge-error"
-          {% else if device.status.has(UpsStatus::NOCOMM) -%}
-            class="edge-4 edge-base-content"
-          {%- else if let Some(input_voltage) = device.input_voltage -%}
-            class="edge-4 edge-animate-flow edge-dashed {{input_voltage.get_semantic_type().as_edge()}}"
-          {%- else -%}
-            class="edge-4 edge-animate-flow edge-dashed edge-success"
-          {%- endif %}
-          id="power_link_{{node_id}}"
-          from="power_link_node_{{node_id}}"
-          to="{{node_id}}"
-        >
-          {%- if let Some(input_voltage) = device.input_voltage -%}
-            <div
-              class="backdrop-blur-sm bg-base-300/80 border border-neutral/30 font-bold p-1 rounded text-nowrap text-xs"
-            >
-              {{input_voltage}}
+        {%- if !device.status.has(UpsStatus::NOCOMM) -%}
+          <nut-graph-node id="power_link_node_{{node_id}}">
+            <div class="bg-base-300 border-2 border-primary flex flex-row font-bold h-8 items-center justify-center rounded-full w-8">
+              {%- call icons::get_ac_icon(22) -%}{%- endcall -%}
             </div>
-          {%- endif -%}
-        </nut-graph-link>
+          </nut-graph-node>
+          <nut-graph-link
+            {% if device.status.has(UpsStatus::ON_BATTERY) || device.status.has(UpsStatus::BYPASS) -%}
+              class="animate-pulse edge-4 edge-error"
+            {%- else -%}
+              class="edge-4 edge-animate-flow edge-dashed edge-success"
+            {%- endif %}
+            id="power_link_{{node_id}}"
+            from="power_link_node_{{node_id}}"
+            to="{{node_id}}"
+          >
+            {%- if let Some(input_voltage) = device.input_voltage -%}
+              <div
+                  class="backdrop-blur-sm bg-base-300/80 border border-neutral/30 font-bold p-1 rounded text-nowrap text-xs {{input_voltage.get_semantic_type().as_text()}}"
+              >
+                {{input_voltage}}
+              </div>
+            {%- endif -%}
+          </nut-graph-link>
+        {%- endif -%}
       {%- endfor -%}
 
       <nut-graph-group id="group_clients">
@@ -377,7 +375,7 @@
 
       {%- for edge in graph.edges -%}
         <nut-graph-link
-          class="edge-2 edge-animate-flow {{edge.edge_type.as_class()}} {{edge.get_semantic_type().as_edge()}}"
+          class="edge-2 {{edge.animate.as_class()}} {{edge.edge_type.as_class()}} {{edge.get_semantic_type().as_edge()}}"
           from="{{edge.from}}"
           id="{{edge.get_id()}}"
           to="{{edge.to}}"
