@@ -46,12 +46,24 @@ pub async fn get(
 ) -> Result<Response, ErrorPage> {
   let mut graph_builder = TopologyGraphBuilder::new();
 
-  for (namespace, upsd) in state.upsd_servers.iter() {
+  // NOTE: Rows are drawn in the configured order. Servers in the same row are sorted by their
+  // names, so the layout doesn't change between requests.
+  let mut upsd_servers: Vec<_> = state.upsd_servers.iter().collect();
+  upsd_servers.sort_by(|a, b| {
+    a.1
+      .config
+      .row
+      .cmp(&b.1.config.row)
+      .then_with(|| a.0.cmp(b.0))
+  });
+
+  for (namespace, upsd) in upsd_servers {
     let state = upsd.daemon_state.read().await;
     graph_builder.add_upsd_server(
       namespace.clone(),
       upsd.config.addr.clone(),
       upsd.config.port,
+      upsd.config.row,
       state.deref(),
     );
   }

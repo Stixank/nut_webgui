@@ -1,3 +1,10 @@
+## Unreleased
+
+### Added
+- Topology page can place UPS daemons in multiple rows. The new `row` option of
+  `[upsd.<name>]` sections *(default `0`)* sets the row of a daemon. Daemons
+  with the same row are drawn side by side in one frame with a `Row N` heading.
+
 ## v0.11.0 - November 21, 2026
 
 ### Fixed

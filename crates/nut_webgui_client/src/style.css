@@ -219,7 +219,10 @@
 
   nut-graph-node,
   nut-graph-link,
-  nut-graph-group {
+  nut-graph-group,
+  nut-graph-row,
+  nut-graph-cluster,
+  nut-graph-heading {
     position: absolute;
     visibility: hidden;
   }

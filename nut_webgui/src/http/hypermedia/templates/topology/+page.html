@@ -197,181 +197,195 @@
     {%- block graph_nodes -%}
     {%- let base_path = askama::get_value::<crate::config::uri_path::UriPath>("HTTP_SERVER__BASE_PATH")? -%}
 
-      {%- for device in graph.devices.values() -%}
-        {%- let node_id = device.get_id() -%}
-        <nut-graph-node id="{{node_id}}">
-          <div class="bg-base-300 border-2 border-collapse flex flex-col gap-4 min-w-32 p-2 rounded {{device.get_semantic_type().as_border()}}">
-            <div class="flex flex-row gap-1 items-center">
-              <div class="text-primary">
-                {%- call icons::get_svg("hard-drive", 24) -%}{%- endcall -%}
-              </div>
-              <div class="flex flex-col text-primary">
-                {%- for alias in device.aliases.iter() -%}
-                  <a
-                    href="{{base_path}}/ups/{{alias.namespace | urlencode_strict}}/{{alias.name | urlencode_strict}}"
-                    class="font-bold link link-primary text-nowrap"
-                  >
-                    <span>{{alias.name}}</span><span class="font-light opacity-70">@{{alias.namespace}}</span>
-                  </a>
-                {%- endfor -%}
-              </div>
+      {%- for row in graph.rows -%}
+        {%- let row_index = loop.index -%}
+        <nut-graph-row id="row_{{row_index}}">
+          <nut-graph-heading>
+            <div class="flex flex-row gap-4 items-center text-nowrap">
+              <span class="badge badge-primary badge-outline">Row {{row.number}}</span>
             </div>
-            <div class="flex flex-col gap-1 opacity-80 text-nowrap text-sm w-full">
-              {%- if let Some(mfr) = device.device_id.manufacturer -%}
-                <div class="flex flex-row gap-1 w-full">
-                  <span class="font-bold w-12">MFR</span>
-                  <span class="font-bold">:</span>
-                  <span class="grow">{{mfr}}</span>
-                </div>
-              {%- endif -%}
-              {%- if let Some(model) = device.device_id.model -%}
-                <div class="flex flex-row gap-1 w-full">
-                  <span class="font-bold w-12">MOD</span>
-                  <span class="font-bold">:</span>
-                  <span class="grow">{{model}}</span>
-                </div>
-              {%- endif -%}
-              {%- if let Some(sn) = device.device_id.serial -%}
-                <div class="flex flex-row gap-1 w-full">
-                  <span class="font-bold w-12">SN</span>
-                  <span class="font-bold">:</span>
-                  <span class="grow">{{sn}}</span>
-                </div>
-              {%- endif -%}
-              {%- if let Some(rt) = device.runtime -%}
-                <div class="flex flex-row gap-1 w-full">
-                  <span class="font-bold w-12">RT</span>
-                  <span class="font-bold">:</span>
-                  <nut-time-display
-                    class="font-bold grow text-success {{rt.get_semantic_type().as_text()}}"
-                    value="{{rt.get()}}"
+          </nut-graph-heading>
+
+          {%- for cluster in row.clusters -%}
+            {%- let cluster_index = loop.index -%}
+            <nut-graph-cluster id="cluster_{{row_index}}_{{cluster_index}}">
+              {%- for device in cluster.devices.iter() -%}
+                {%- let node_id = device.get_id() -%}
+                <nut-graph-node id="{{node_id}}">
+                  <div class="bg-base-300 border-2 border-collapse flex flex-col gap-4 min-w-32 p-2 rounded {{device.get_semantic_type().as_border()}}">
+                    <div class="flex flex-row gap-1 items-center">
+                      <div class="text-primary">
+                        {%- call icons::get_svg("hard-drive", 24) -%}{%- endcall -%}
+                      </div>
+                      <div class="flex flex-col text-primary">
+                        {%- for alias in device.aliases.iter() -%}
+                          <a
+                            href="{{base_path}}/ups/{{alias.namespace | urlencode_strict}}/{{alias.name | urlencode_strict}}"
+                            class="font-bold link link-primary text-nowrap"
+                          >
+                            <span>{{alias.name}}</span><span class="font-light opacity-70">@{{alias.namespace}}</span>
+                          </a>
+                        {%- endfor -%}
+                      </div>
+                    </div>
+                    <div class="flex flex-col gap-1 opacity-80 text-nowrap text-sm w-full">
+                      {%- if let Some(mfr) = device.device_id.manufacturer -%}
+                        <div class="flex flex-row gap-1 w-full">
+                          <span class="font-bold w-12">MFR</span>
+                          <span class="font-bold">:</span>
+                          <span class="grow">{{mfr}}</span>
+                        </div>
+                      {%- endif -%}
+                      {%- if let Some(model) = device.device_id.model -%}
+                        <div class="flex flex-row gap-1 w-full">
+                          <span class="font-bold w-12">MOD</span>
+                          <span class="font-bold">:</span>
+                          <span class="grow">{{model}}</span>
+                        </div>
+                      {%- endif -%}
+                      {%- if let Some(sn) = device.device_id.serial -%}
+                        <div class="flex flex-row gap-1 w-full">
+                          <span class="font-bold w-12">SN</span>
+                          <span class="font-bold">:</span>
+                          <span class="grow">{{sn}}</span>
+                        </div>
+                      {%- endif -%}
+                      {%- if let Some(rt) = device.runtime -%}
+                        <div class="flex flex-row gap-1 w-full">
+                          <span class="font-bold w-12">RT</span>
+                          <span class="font-bold">:</span>
+                          <nut-time-display
+                            class="font-bold grow text-success {{rt.get_semantic_type().as_text()}}"
+                            value="{{rt.get()}}"
+                          >
+                          </nut-time-display>
+                        </div>
+                      {%- endif -%}
+                      <div class="flex flex-row gap-1 items-center w-full">
+                        <span class="font-bold w-12">BATT</span>
+                        <span class="font-bold">:</span>
+                        {%- if let Some(battery) = device.battery -%}
+                          <div class="grow">
+                            <nut-bar-gauge
+                              class="h-6 w-full {{battery.get_semantic_type().as_bar_gauge()}}"
+                              value="{{battery.get()}}"
+                            >
+                            </nut-bar-gauge>
+                          </div>
+                        {%- else -%}
+                          <span class="grow">
+                            N/A
+                          </span>
+                        {%- endif -%}
+                      </div>
+                      <div class="flex flex-row gap-1 items-center w-full">
+                        <span class="font-bold w-12">LOAD</span>
+                        <span class="font-bold">:</span>
+                        {%- if let Some(load) = device.load -%}
+                          <div class="grow">
+                            <nut-bar-gauge
+                              class="h-6 w-full {{load.get_semantic_type().as_bar_gauge()}}"
+                              value="{{load.get()}}"
+                            >
+                            </nut-bar-gauge>
+                          </div>
+                        {%- else -%}
+                          <span class="grow">
+                            N/A
+                          </span>
+                        {%- endif -%}
+                      </div>
+                    </div>
+                    <div class="border-success flex flex-col gap-1 items-center justify-center">
+                      {%- for status_detail in crate::http::hypermedia::util::ups_status::StatusDetailIter::new(*device.status) -%}
+                        <span class="badge badge-outline badge-xs text-nowrap text-xs uppercase {{status_detail.class.as_badge()}}">
+                          {{status_detail.name}}
+                        </span>
+                      {%- endfor -%}
+                    </div>
+                  </div>
+                </nut-graph-node>
+                {%- if !device.status.has(UpsStatus::NOCOMM) -%}
+                  <nut-graph-node id="power_link_node_{{node_id}}">
+                    <div class="bg-base-300 border-2 border-primary flex flex-row font-bold h-8 items-center justify-center rounded-full w-8">
+                      {%- call icons::get_ac_icon(22) -%}{%- endcall -%}
+                    </div>
+                  </nut-graph-node>
+                  <nut-graph-link
+                    {% if device.status.has(UpsStatus::ON_BATTERY) || device.status.has(UpsStatus::BYPASS) -%}
+                      class="animate-pulse edge-4 edge-error"
+                    {%- else -%}
+                      class="edge-4 edge-animate-flow edge-dashed edge-success"
+                    {%- endif %}
+                    id="power_link_{{node_id}}"
+                    from="power_link_node_{{node_id}}"
+                    to="{{node_id}}"
                   >
-                  </nut-time-display>
-                </div>
-              {%- endif -%}
-              <div class="flex flex-row gap-1 items-center w-full">
-                <span class="font-bold w-12">BATT</span>
-                <span class="font-bold">:</span>
-                {%- if let Some(battery) = device.battery -%}
-                  <div class="grow">
-                    <nut-bar-gauge
-                      class="h-6 w-full {{battery.get_semantic_type().as_bar_gauge()}}"
-                      value="{{battery.get()}}"
-                    >
-                    </nut-bar-gauge>
-                  </div>
-                {%- else -%}
-                  <span class="grow">
-                    N/A
-                  </span>
+                    {%- if let Some(input_voltage) = device.input_voltage -%}
+                      <div
+                          class="backdrop-blur-sm bg-base-300/80 border border-neutral/30 font-bold p-1 rounded text-nowrap text-xs {{input_voltage.get_semantic_type().as_text()}}"
+                      >
+                        {{input_voltage}}
+                      </div>
+                    {%- endif -%}
+                  </nut-graph-link>
                 {%- endif -%}
-              </div>
-              <div class="flex flex-row gap-1 items-center w-full">
-                <span class="font-bold w-12">LOAD</span>
-                <span class="font-bold">:</span>
-                {%- if let Some(load) = device.load -%}
-                  <div class="grow">
-                    <nut-bar-gauge
-                      class="h-6 w-full {{load.get_semantic_type().as_bar_gauge()}}"
-                      value="{{load.get()}}"
-                    >
-                    </nut-bar-gauge>
-                  </div>
-                {%- else -%}
-                  <span class="grow">
-                    N/A
-                  </span>
-                {%- endif -%}
-              </div>
-            </div>
-            <div class="border-success flex flex-col gap-1 items-center justify-center">
-              {%- for status_detail in crate::http::hypermedia::util::ups_status::StatusDetailIter::new(*device.status) -%}
-                <span class="badge badge-outline badge-xs text-nowrap text-xs uppercase {{status_detail.class.as_badge()}}">
-                  {{status_detail.name}}
-                </span>
               {%- endfor -%}
-            </div>
-          </div>
-        </nut-graph-node>
-        {%- if !device.status.has(UpsStatus::NOCOMM) -%}
-          <nut-graph-node id="power_link_node_{{node_id}}">
-            <div class="bg-base-300 border-2 border-primary flex flex-row font-bold h-8 items-center justify-center rounded-full w-8">
-              {%- call icons::get_ac_icon(22) -%}{%- endcall -%}
-            </div>
-          </nut-graph-node>
-          <nut-graph-link
-            {% if device.status.has(UpsStatus::ON_BATTERY) || device.status.has(UpsStatus::BYPASS) -%}
-              class="animate-pulse edge-4 edge-error"
-            {%- else -%}
-              class="edge-4 edge-animate-flow edge-dashed edge-success"
-            {%- endif %}
-            id="power_link_{{node_id}}"
-            from="power_link_node_{{node_id}}"
-            to="{{node_id}}"
-          >
-            {%- if let Some(input_voltage) = device.input_voltage -%}
-              <div
-                  class="backdrop-blur-sm bg-base-300/80 border border-neutral/30 font-bold p-1 rounded text-nowrap text-xs {{input_voltage.get_semantic_type().as_text()}}"
-              >
-                {{input_voltage}}
-              </div>
-            {%- endif -%}
-          </nut-graph-link>
-        {%- endif -%}
+
+              <nut-graph-group id="group_clients_{{row_index}}_{{cluster_index}}">
+                <nut-graph-node id="{{cluster.server.get_id()}}">
+                  <div class="bg-base-300 border-2 border-collapse flex flex-col gap-4 min-w-32 p-2 rounded {{cluster.server.get_semantic_type().as_border()}}">
+                    <div class="flex flex-row gap-2 items-center">
+                      <div class="text-primary">
+                        {%- call icons::get_svg("server", 24) -%}{%- endcall -%}
+                      </div>
+                      <div>
+                        <div class="font-bold leading-tight text-nowrap text-primary">
+                          {{cluster.server.namespace}}
+                        </div>
+                        <div class="leading-tight opacity-70 text-center text-nowrap text-xs">
+                          {{cluster.server.address}}:{{cluster.server.port}}
+                        </div>
+                      </div>
+                    </div>
+                    <div class="flex flex-row justify-center">
+                      <span class="badge badge-info badge-outline text-nowrap text-xs uppercase">
+                        {{cluster.server.status}}
+                      </span>
+                    </div>
+                  </div>
+                </nut-graph-node>
+
+                {%- for client in cluster.clients.iter() -%}
+                  <nut-graph-node id="{{client.get_id()}}">
+                    <div class="bg-base-300 border-2 border-collapse flex flex-col gap-4 min-w-32 p-2 rounded {{client.get_semantic_type().as_border()}}">
+                      <div class="flex flex-row gap-2 items-center">
+                        <div class="text-secondary">
+                          {%- call icons::get_svg("monitor", 24) -%}{%- endcall -%}
+                        </div>
+                        <div>
+                          {%- if let Some(name) = client.name -%}
+                            <div class="font-bold leading-tight text-nowrap text-primary">
+                              {{name}}
+                            </div>
+                            <div class="leading-tight opacity-70 text-center text-nowrap text-xs">
+                              {{client.address}}
+                            </div>
+                          {%- else -%}
+                            <div class="font-bold leading-tight text-nowrap text-primary">
+                              {{client.address}}
+                            </div>
+                          {%- endif -%}
+                        </div>
+                      </div>
+                    </div>
+                  </nut-graph-node>
+                {%- endfor -%}
+              </nut-graph-group>
+            </nut-graph-cluster>
+          {%- endfor -%}
+        </nut-graph-row>
       {%- endfor -%}
-
-      <nut-graph-group id="group_clients">
-        {%- for server in graph.servers.values() -%}
-          <nut-graph-node id="{{server.get_id()}}">
-            <div class="bg-base-300 border-2 border-collapse flex flex-col gap-4 min-w-32 p-2 rounded {{server.get_semantic_type().as_border()}}">
-              <div class="flex flex-row gap-2 items-center">
-                <div class="text-primary">
-                  {%- call icons::get_svg("server", 24) -%}{%- endcall -%}
-                </div>
-                <div>
-                  <div class="font-bold leading-tight text-nowrap text-primary">
-                    {{server.namespace}}
-                  </div>
-                  <div class="leading-tight opacity-70 text-center text-nowrap text-xs">
-                    {{server.address}}:{{server.port}}
-                  </div>
-                </div>
-              </div>
-              <div class="flex flex-row justify-center">
-                <span class="badge badge-info badge-outline text-nowrap text-xs uppercase">
-                  {{server.status}}
-                </span>
-              </div>
-            </div>
-          </nut-graph-node>
-        {%- endfor -%}
-
-        {%- for client in graph.clients.values() -%}
-          <nut-graph-node id="{{client.get_id()}}">
-            <div class="bg-base-300 border-2 border-collapse flex flex-col gap-4 min-w-32 p-2 rounded {{client.get_semantic_type().as_border()}}">
-              <div class="flex flex-row gap-2 items-center">
-                <div class="text-secondary">
-                  {%- call icons::get_svg("monitor", 24) -%}{%- endcall -%}
-                </div>
-                <div>
-                  {%- if let Some(name) = client.name -%}
-                    <div class="font-bold leading-tight text-nowrap text-primary">
-                      {{name}}
-                    </div>
-                    <div class="leading-tight opacity-70 text-center text-nowrap text-xs">
-                      {{client.address}}
-                    </div>
-                  {%- else -%}
-                    <div class="font-bold leading-tight text-nowrap text-primary">
-                      {{client.address}}
-                    </div>
-                  {%- endif -%}
-                </div>
-              </div>
-            </div>
-          </nut-graph-node>
-        {%- endfor -%}
-      </nut-graph-group>
 
       {%- for edge in graph.edges -%}
         <nut-graph-link

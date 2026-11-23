@@ -45,80 +45,344 @@ const Position = {
   Left: 3,
 };
 
+const GRAPH_MARGIN = 16;
+const ROW_PADDING = 12;
+const CLUSTER_GAP = 64;
+const ROW_GAP = 48;
+const HEADING_GAP = 12;
+
 class GraphNode extends HTMLElement {}
 class GraphGroup extends GraphNode {}
 class GraphLink extends GraphNode {}
+/** Framed horizontal band with a heading. Clusters inside the same row are placed side by side. */
+class GraphRow extends GraphNode {}
+/** Independent part of the graph that is laid out on its own, e.g. everything of one UPSD. */
+class GraphCluster extends GraphNode {}
+/** Title of a row. */
+class GraphHeading extends GraphNode {}
 
 /**
- * @param {import("@dagrejs/dagre").graphlib.Graph} context
- * @param {Element} root_node
- * @param {string | undefined | null} [parent]
+ * @typedef LeafNode
+ * @property {string} id
+ * @property {string} html
+ * @property {number} width
+ * @property {number} height
+ * @property {string | undefined} parent
+ * @property {number} x Center of the node
+ * @property {number} y Center of the node
  */
-function process_nodes(context, root_node, parent) {
+
+/**
+ * @typedef LayoutLink
+ * @property {string} id
+ * @property {string} from
+ * @property {string} to
+ * @property {string} class
+ * @property {number} weight
+ * @property {number} from_offset
+ * @property {number} to_offset
+ * @property {string | undefined} label
+ * @property {number} label_width
+ * @property {number} label_height
+ */
+
+/**
+ * @typedef LayoutCluster
+ * @property {{id: string, parent: string | undefined}[]} groups
+ * @property {LeafNode[]} nodes
+ * @property {number} x
+ * @property {number} y
+ * @property {number} width
+ * @property {number} height
+ */
+
+/**
+ * @typedef LayoutRow
+ * @property {LayoutCluster[]} clusters
+ * @property {{html: string, width: number, height: number} | undefined} heading
+ * @property {boolean} framed
+ * @property {number} x
+ * @property {number} y
+ * @property {number} width
+ * @property {number} height
+ */
+
+/**
+ * @returns {LayoutCluster}
+ */
+function new_cluster() {
+  return { groups: [], nodes: [], x: 0, y: 0, width: 0, height: 0 };
+}
+
+/**
+ * @param {LayoutCluster[]} clusters
+ * @param {{html: string, width: number, height: number} | undefined} heading
+ * @param {boolean} framed
+ * @returns {LayoutRow}
+ */
+function new_row(clusters, heading, framed) {
+  return { clusters, heading, framed, x: 0, y: 0, width: 0, height: 0 };
+}
+
+/**
+ * @param {Element} element
+ * @param {string | undefined} parent
+ * @returns {LeafNode}
+ */
+function read_leaf(element, parent) {
+  return {
+    id: element.id,
+    html: element.innerHTML.trim(),
+    width: getAttributeNumeric(element, "width") ?? element.clientWidth,
+    height: getAttributeNumeric(element, "height") ?? element.clientHeight,
+    parent,
+    x: 0,
+    y: 0,
+  };
+}
+
+/**
+ * @param {Element} element
+ * @returns {LayoutLink}
+ */
+function read_link(element) {
+  const label = element.innerHTML?.trim();
+
+  return {
+    id: element.id,
+    from: element.getAttribute("from") ?? "",
+    to: element.getAttribute("to") ?? "",
+    class: element.className,
+    weight: getAttributeNumeric(element, "weight") ?? 1,
+    from_offset: getAttributeNumeric(element, "from-offset") ?? 0,
+    to_offset: getAttributeNumeric(element, "to-offset") ?? 0,
+    label: label && label.length > 1 ? label : undefined,
+    label_width: element.clientWidth ?? 0,
+    label_height: element.clientHeight ?? 0,
+  };
+}
+
+/**
+ * @param {Element} child
+ * @param {LayoutCluster} cluster
+ * @param {LayoutLink[]} links
+ * @param {string | undefined} [parent]
+ */
+function collect_child(child, cluster, links, parent) {
+  switch (child.nodeName) {
+    case "NUT-GRAPH-GROUP": {
+      cluster.groups.push({ id: child.id, parent });
+
+      for (const inner of child.children) {
+        collect_child(inner, cluster, links, child.id);
+      }
+      break;
+    }
+    case "NUT-GRAPH-NODE": {
+      cluster.nodes.push(read_leaf(child, parent));
+      break;
+    }
+    case "NUT-GRAPH-LINK": {
+      links.push(read_link(child));
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+/**
+ * @param {Element} element
+ * @returns {{html: string, width: number, height: number}}
+ */
+function read_heading(element) {
+  return {
+    html: element.innerHTML.trim(),
+    width: element.clientWidth,
+    height: element.clientHeight,
+  };
+}
+
+/**
+ * Reads the rows, clusters, nodes and links from the (hidden) markup.
+ *
+ * Nodes that are not inside any row end up in a single implicit row without a frame, so a flat
+ * graph keeps working.
+ *
+ * @param {Element} root_node
+ * @returns {{rows: LayoutRow[], links: LayoutLink[]}}
+ */
+function parse_layout(root_node) {
+  /** @type {LayoutRow[]} */
+  const rows = [];
+  /** @type {LayoutLink[]} */
+  const links = [];
+  /** @type {LayoutCluster | undefined} */
+  let implicit = undefined;
+
   for (const child of root_node.children) {
-    switch (child.nodeName) {
-      case "NUT-GRAPH-GROUP": {
-        const group = child.id;
+    if (child.nodeName === "NUT-GRAPH-ROW") {
+      const row = new_row([], undefined, true);
+      rows.push(row);
 
-        context.setNode(group, {
-          __type: "group",
-        });
+      for (const row_child of child.children) {
+        if (row_child.nodeName === "NUT-GRAPH-HEADING") {
+          row.heading = read_heading(row_child);
+        } else if (row_child.nodeName === "NUT-GRAPH-CLUSTER") {
+          const cluster = new_cluster();
+          row.clusters.push(cluster);
 
-        process_nodes(context, child, group);
-        break;
-      }
-      case "NUT-GRAPH-NODE": {
-        const label = child.id;
-        const width = getAttributeNumeric(child, "width") ?? child.clientWidth;
-        const height =
-          getAttributeNumeric(child, "height") ?? child.clientHeight;
-
-        context.setNode(label, {
-          height: height,
-          width: width,
-          label: child.innerHTML.trim(),
-          __type: "leaf",
-        });
-
-        if (parent) {
-          context.setParent(label, parent);
+          for (const inner of row_child.children) {
+            collect_child(inner, cluster, links);
+          }
         }
-
-        break;
       }
-      case "NUT-GRAPH-LINK": {
-        const from = child.getAttribute("from") ?? "";
-        const to = child.getAttribute("to") ?? "";
-        const weight = getAttributeNumeric(child, "weight") ?? 1;
-        const from_offset = getAttributeNumeric(child, "from-offset") ?? 0;
-        const to_offset = getAttributeNumeric(child, "to-offset") ?? 0;
-        const label = child.innerHTML?.trim();
-
-        if (label && label.length > 1) {
-          context.setEdge(from, to, {
-            class: child.className,
-            label,
-            label_height: child.clientHeight ?? 0,
-            label_width: child.clientWidth ?? 0,
-            weight,
-            from_offset,
-            to_offset,
-          });
-        } else {
-          context.setEdge(
-            from,
-            to,
-            { class: child.className, weight, from_offset, to_offset },
-            child.id,
-          );
-        }
-
-        break;
+    } else if (child.nodeName === "NUT-GRAPH-LINK") {
+      links.push(read_link(child));
+    } else {
+      if (!implicit) {
+        implicit = new_cluster();
+        rows.push(new_row([implicit], undefined, false));
       }
-      default:
-        break;
+
+      collect_child(child, implicit, links);
     }
   }
+
+  return { rows, links };
+}
+
+/**
+ * Places the nodes of one cluster with dagre. After this call every node position is relative to
+ * the top-left corner of the cluster.
+ *
+ * @param {LayoutCluster} cluster
+ * @param {LayoutLink[]} links
+ * @param {RankDirection} rankdir
+ * @param {AlignDirection | undefined} align
+ */
+function layout_cluster(cluster, links, rankdir, align) {
+  const node_ids = new Set(cluster.nodes.map((node) => node.id));
+
+  const graph = new dagre.graphlib.Graph({
+    multigraph: true,
+    compound: true,
+  })
+    .setGraph({ marginx: 0, marginy: 0, rankdir, align })
+    .setDefaultEdgeLabel(function () {
+      return {};
+    });
+
+  for (const group of cluster.groups) {
+    graph.setNode(group.id, { __type: "group" });
+  }
+
+  for (const group of cluster.groups) {
+    if (group.parent) {
+      graph.setParent(group.id, group.parent);
+    }
+  }
+
+  for (const node of cluster.nodes) {
+    graph.setNode(node.id, { width: node.width, height: node.height });
+
+    if (node.parent) {
+      graph.setParent(node.id, node.parent);
+    }
+  }
+
+  // NOTE: Links that leave the cluster do not affect the layout.
+  for (const link of links) {
+    if (node_ids.has(link.from) && node_ids.has(link.to)) {
+      graph.setEdge(link.from, link.to, { weight: link.weight }, link.id);
+    }
+  }
+
+  dagre.layout(graph);
+
+  for (const node of cluster.nodes) {
+    const layout = graph.node(node.id);
+
+    node.x = layout.x;
+    node.y = layout.y;
+  }
+
+  const has_nodes = cluster.nodes.length > 0;
+  const min_x = Math.min(...cluster.nodes.map((node) => node.x - node.width / 2));
+  const min_y = Math.min(...cluster.nodes.map((node) => node.y - node.height / 2));
+  const max_x = Math.max(...cluster.nodes.map((node) => node.x + node.width / 2));
+  const max_y = Math.max(...cluster.nodes.map((node) => node.y + node.height / 2));
+
+  for (const node of cluster.nodes) {
+    move_node(node, -min_x, -min_y);
+  }
+
+  cluster.width = has_nodes ? max_x - min_x : 0;
+  cluster.height = has_nodes ? max_y - min_y : 0;
+}
+
+/**
+ * @param {LeafNode} node
+ * @param {number} dx
+ * @param {number} dy
+ */
+function move_node(node, dx, dy) {
+  node.x += dx;
+  node.y += dy;
+}
+
+/**
+ * Lays out every cluster and packs them into rows. A row is a frame with a heading, clusters
+ * inside it are placed side by side. Cluster, row and node positions are absolute after this
+ * call.
+ *
+ * @param {LayoutRow[]} rows
+ * @param {LayoutLink[]} links
+ * @param {RankDirection} rankdir
+ * @param {AlignDirection | undefined} align
+ * @returns {{width: number, height: number}}
+ */
+function layout_rows(rows, links, rankdir, align) {
+  let y = GRAPH_MARGIN;
+  let width = 2 * GRAPH_MARGIN;
+
+  for (const row of rows) {
+    const padding = row.framed ? ROW_PADDING : 0;
+    const heading_block = row.heading ? row.heading.height + HEADING_GAP : 0;
+    let content_width = 0;
+    let content_height = 0;
+
+    for (const cluster of row.clusters) {
+      layout_cluster(cluster, links, rankdir, align);
+
+      cluster.x = content_width;
+      content_width += cluster.width + CLUSTER_GAP;
+      content_height = Math.max(content_height, cluster.height);
+    }
+
+    content_width = Math.max(0, content_width - CLUSTER_GAP);
+
+    row.x = GRAPH_MARGIN;
+    row.y = y;
+    row.width = Math.max(content_width, row.heading?.width ?? 0) + 2 * padding;
+    row.height = heading_block + content_height + 2 * padding;
+
+    for (const cluster of row.clusters) {
+      cluster.x += row.x + padding;
+      cluster.y = row.y + padding + heading_block;
+
+      for (const node of cluster.nodes) {
+        move_node(node, cluster.x, cluster.y);
+      }
+    }
+
+    width = Math.max(width, row.x + row.width + GRAPH_MARGIN);
+    y += row.height + ROW_GAP;
+  }
+
+  const height = rows.length > 0 ? y - ROW_GAP + GRAPH_MARGIN : 2 * GRAPH_MARGIN;
+
+  return { width, height };
 }
 
 /**
@@ -507,31 +771,26 @@ class Graph extends HTMLElement {
     this.#container.append(temp_layout);
 
     setTimeout(() => {
-      const graph = new dagre.graphlib.Graph({
-        multigraph: true,
-        compound: true,
-      })
-        .setGraph({
-          marginx: 16,
-          marginy: 16,
-          rankdir,
-          align,
-        })
-        .setDefaultEdgeLabel(function () {
-          return {};
-        });
+      const { rows, links } = parse_layout(temp_layout);
+      const layout = layout_rows(rows, links, rankdir, align);
+      const clusters = rows.flatMap((row) => row.clusters);
 
-      process_nodes(graph, temp_layout);
-      dagre.layout(graph);
+      /** @type {Map<string, LeafNode>} */
+      const nodes = new Map();
+
+      for (const cluster of clusters) {
+        for (const node of cluster.nodes) {
+          nodes.set(node.id, node);
+        }
+      }
 
       const svg_root = document.createElement("div");
       svg_root.style.display = "inline-block";
       svg_root.style.height = "100%";
       svg_root.style.width = "100%";
 
-      const graph_label = graph.graph();
-      const graph_height = Math.max(this.scrollHeight, graph_label.height ?? 0);
-      const graph_width = Math.max(this.scrollWidth, graph_label.width ?? 0);
+      const graph_height = Math.max(this.scrollHeight, layout.height);
+      const graph_width = Math.max(this.scrollWidth, layout.width);
       const svg_container = d3_select(svg_root);
       const svg = svg_container
         .append("svg")
@@ -552,71 +811,94 @@ class Graph extends HTMLElement {
 
       const edge_config = into_edge_config(rankdir);
 
-      for (const v of graph.nodes()) {
-        const node = graph.node(v);
+      for (const row of rows) {
+        if (row.framed) {
+          group
+            .append("rect")
+            .attr("x", row.x)
+            .attr("y", row.y)
+            .attr("width", row.width)
+            .attr("height", row.height)
+            .attr("rx", 8)
+            .attr(
+              "style",
+              "fill:color-mix(in oklab, var(--color-base-300) 40%, transparent);" +
+                "stroke:var(--color-base-300);stroke-width:1;stroke-dasharray:6 6",
+            );
+        }
 
-        if (node.__type === "leaf") {
-          const edges = graph.outEdges(v);
+        if (row.heading) {
+          group
+            .append("foreignObject")
+            .attr("x", row.x + ROW_PADDING)
+            .attr("y", row.y + ROW_PADDING)
+            .attr("width", row.heading.width)
+            .attr("height", row.heading.height)
+            .append("xhtml:div")
+            .html(row.heading.html);
+        }
+      }
 
-          if (edges) {
-            for (const edge of edges) {
-              const src_node = graph.node(edge.v);
-              const dest_node = graph.node(edge.w);
-              const graph_edge = graph.edge(edge);
+      // NOTE: Links are drawn first so that nodes are always on top of them.
+      for (const link of links) {
+        const src_node = nodes.get(link.from);
+        const dest_node = nodes.get(link.to);
 
-              const start = get_connection_point(
-                src_node,
-                edge_config.src_position,
-                graph_edge.from_offset,
-              );
-              const dest = get_connection_point(
-                dest_node,
-                edge_config.dest_position,
-                graph_edge.to_offset,
-              );
+        if (!src_node || !dest_node) {
+          continue;
+        }
 
-              const path = d3_link(edge_config.curvature)({
-                source: [start.x, start.y],
-                target: [dest.x, dest.y],
-              });
+        const start = get_connection_point(
+          src_node,
+          edge_config.src_position,
+          link.from_offset,
+        );
 
-              const svg_path = group.append("path").attr("d", path);
+        const dest = get_connection_point(
+          dest_node,
+          edge_config.dest_position,
+          link.to_offset,
+        );
+        const svg_path = group
+          .append("path")
+          .attr(
+            "d",
+            d3_link(edge_config.curvature)({
+              source: [start.x, start.y],
+              target: [dest.x, dest.y],
+            }),
+          );
 
-              if (graph_edge.class) {
-                svg_path.attr("class", graph_edge.class);
-              } else {
-                svg_path.attr("style", "fill:none;stroke:green;stroke-width:3");
-              }
+        if (link.class) {
+          svg_path.attr("class", link.class);
+        } else {
+          svg_path.attr("style", "fill:none;stroke:green;stroke-width:3");
+        }
 
-              if (
-                graph_edge.label &&
-                graph_edge.label_width &&
-                graph_edge.label_height
-              ) {
-                const labelX = start.x + (dest.x - start.x) / 2;
-                const labelY = start.y + (dest.y - start.y) / 2;
-
-                group
-                  .append("foreignObject")
-                  .attr("x", labelX - graph_edge.label_width / 2)
-                  .attr("y", labelY - graph_edge.label_height / 2)
-                  .attr("width", graph_edge.label_width)
-                  .attr("height", graph_edge.label_height)
-                  .append("xhtml:div")
-                  .html(graph_edge.label);
-              }
-            }
-          }
+        if (link.label && link.label_width && link.label_height) {
+          const labelX = start.x + (dest.x - start.x) / 2;
+          const labelY = start.y + (dest.y - start.y) / 2;
 
           group
             .append("foreignObject")
-            .attr("x", node.x - node.width / 2)
-            .attr("y", node.y - node.height / 2)
-            .attr("width", node.width)
-            .attr("height", node.height)
+            .attr("x", labelX - link.label_width / 2)
+            .attr("y", labelY - link.label_height / 2)
+            .attr("width", link.label_width)
+            .attr("height", link.label_height)
             .append("xhtml:div")
-            .html(node.label ?? "");
+            .html(link.label);
         }
+      }
+
+      for (const node of nodes.values()) {
+        group
+          .append("foreignObject")
+          .attr("x", node.x - node.width / 2)
+          .attr("y", node.y - node.height / 2)
+          .attr("width", node.width)
+          .attr("height", node.height)
+          .append("xhtml:div")
+          .html(node.html);
       }
 
       this.#state.height = graph_height;
@@ -687,3 +969,6 @@ customElements.define("nut-graph", Graph);
 customElements.define("nut-graph-node", GraphNode);
 customElements.define("nut-graph-link", GraphLink);
 customElements.define("nut-graph-group", GraphGroup);
+customElements.define("nut-graph-row", GraphRow);
+customElements.define("nut-graph-cluster", GraphCluster);
+customElements.define("nut-graph-heading", GraphHeading);

@@ -85,6 +85,11 @@ pub struct UpsdConfig {
 
   /// UPSD specific client filter.
   pub ignore_clients: Box<[IpAddr]>,
+
+  /// Row number of this UPSD in the topology view. UPSDs with the same row number are drawn
+  /// side by side in one group, rows are drawn from the smallest number to the largest.
+  /// Default is `0`.
+  pub row: u16,
 }
 
 #[derive(Debug)]
@@ -143,6 +148,7 @@ impl Default for UpsdConfig {
       port: 3493,
       tls_mode: TlsMode::Disable,
       user: None,
+      row: 0,
     }
   }
 }
@@ -191,6 +197,7 @@ impl core::fmt::Debug for UpsdConfig {
       .field("ignore_clients", &self.ignore_clients)
       .field("pass", &self.pass.as_ref().map(|_| "******"))
       .field("user", &self.user.as_ref().map(|_| "******"))
+      .field("row", &self.row)
       .finish()
   }
 }

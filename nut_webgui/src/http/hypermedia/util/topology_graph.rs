@@ -29,10 +29,23 @@ pub trait GraphNode {
 }
 
 pub struct TopologyGraph {
-  pub clients: BTreeMap<IpAddr, ClientNode>,
-  pub devices: BTreeMap<Arc<DeviceId>, DeviceNode>,
   pub edges: Vec<EdgeNode>,
-  pub servers: BTreeMap<UpsdNamespace, NutServerNode>,
+  /// Rows are sorted by their row number.
+  pub rows: Vec<TopologyRow>,
+}
+
+/// UPSDs that share the same row number in the config. They are drawn side by side.
+pub struct TopologyRow {
+  pub clusters: Vec<TopologyCluster>,
+  pub number: u16,
+}
+
+/// A UPSD and everything that belongs to it: its devices, and the clients powered by those
+/// devices.
+pub struct TopologyCluster {
+  pub clients: Vec<ClientNode>,
+  pub devices: Vec<DeviceNode>,
+  pub server: NutServerNode,
 }
 
 pub struct TopologyGraphBuilder {
@@ -101,6 +114,8 @@ pub struct ClientNode {
   power_status: PowerStatusLevel,
   id: usize,
   pub address: IpAddr,
+  /// Namespace of the UPSD whose devices power this client. Used for placing the client.
+  cluster: UpsdNamespace,
   pub name: Option<Box<str>>,
 }
 
@@ -110,6 +125,8 @@ pub struct NutServerNode {
   pub address: Box<str>,
   pub namespace: Arc<str>,
   pub port: u16,
+  /// Row number from the UPSD config.
+  row: u16,
   pub status: ConnectionStatus,
 }
 
@@ -118,6 +135,8 @@ pub struct DeviceNode {
   power_status: PowerStatusLevel,
   pub aliases: Vec<DeviceAlias>,
   pub battery: Option<Percentage>,
+  /// Namespace of the UPSD that reports this device. Used for placing the device.
+  cluster: UpsdNamespace,
   pub device_id: Arc<DeviceId>,
   pub input_voltage: Option<Voltage>,
   pub load: Option<Percentage>,
@@ -150,6 +169,7 @@ impl TopologyGraphBuilder {
     namespace: Arc<str>,
     address: Box<str>,
     port: u16,
+    row: u16,
     upsd_state: &DaemonState,
   ) {
     let mut server_node = NutServerNode {
@@ -157,6 +177,7 @@ impl TopologyGraphBuilder {
       address,
       namespace,
       port,
+      row,
       status: upsd_state.status,
       power_status: PowerStatusLevel::default(),
     };
@@ -170,14 +191,62 @@ impl TopologyGraphBuilder {
       .insert(server_node.namespace.clone(), server_node);
   }
 
-  #[inline]
   pub fn finish(self) -> TopologyGraph {
-    TopologyGraph {
-      devices: self.devices,
-      edges: self.edges,
-      clients: self.clients,
-      servers: self.servers,
+    let Self {
+      clients,
+      devices,
+      edges,
+      servers,
+    } = self;
+
+    let mut clusters: BTreeMap<UpsdNamespace, TopologyCluster> = servers
+      .into_iter()
+      .map(|(namespace, server)| {
+        (
+          namespace,
+          TopologyCluster {
+            clients: Vec::new(),
+            devices: Vec::new(),
+            server,
+          },
+        )
+      })
+      .collect();
+
+    for device in devices.into_values() {
+      if let Some(cluster) = clusters.get_mut(&device.cluster) {
+        cluster.devices.push(device);
+      }
     }
+
+    for client in clients.into_values() {
+      if let Some(cluster) = clusters.get_mut(&client.cluster) {
+        cluster.clients.push(client);
+      }
+    }
+
+    // NOTE: Sort is stable, so clusters with the same row number stay ordered by namespace.
+    let mut clusters: Vec<TopologyCluster> = clusters.into_values().collect();
+    clusters.sort_by_key(|cluster| cluster.server.row);
+
+    let mut rows: Vec<TopologyRow> = Vec::new();
+
+    for cluster in clusters {
+      let number = cluster.server.row;
+
+      if rows.last().is_none_or(|row| row.number != number) {
+        rows.push(TopologyRow {
+          clusters: Vec::new(),
+          number,
+        });
+      }
+
+      if let Some(row) = rows.last_mut() {
+        row.clusters.push(cluster);
+      }
+    }
+
+    TopologyGraph { edges, rows }
   }
 
   fn add_device(&mut self, device: &DeviceEntry, server_node: &mut NutServerNode) {
@@ -217,6 +286,7 @@ impl TopologyGraphBuilder {
             namespace: server_node.namespace.clone(),
           }],
           battery: device.get_battery_charge(),
+          cluster: server_node.namespace.clone(),
           input_voltage: device.get_input_voltage(),
           load: device.get_ups_load(),
           runtime: device.get_battery_runtime(),
@@ -233,7 +303,12 @@ impl TopologyGraphBuilder {
 
             server_node.get_id()
           } else {
-            self.add_client(client.addr, client.name.clone(), device_node.power_status)
+            self.add_client(
+              client.addr,
+              client.name.clone(),
+              device_node.power_status,
+              server_node,
+            )
           };
 
           self.add_edge(
@@ -274,11 +349,13 @@ impl TopologyGraphBuilder {
     address: IpAddr,
     name: Option<Box<str>>,
     power_status: PowerStatusLevel,
+    server_node: &NutServerNode,
   ) -> NodeId {
     let next_id = self.clients.len();
     let client = self.clients.entry(address).or_insert_with(|| ClientNode {
       id: next_id,
       address,
+      cluster: server_node.namespace.clone(),
       name: name.clone(),
       power_status: PowerStatusLevel::default(),
     });

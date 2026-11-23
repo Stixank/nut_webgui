@@ -47,6 +47,7 @@ pub struct UpsdConfigSection {
   pub max_connection: Option<NonZeroUsize>,
   pub tls_mode: Option<TlsMode>,
   pub ignore_clients: Option<BTreeSet<IpAddr>>,
+  pub row: Option<u16>,
 }
 
 #[derive(Deserialize, Default, Debug)]
@@ -131,6 +132,7 @@ impl ConfigLayer for ServerTomlArgs {
         override_opt_field!(upsd_cfg.poll_freq, inner_value: upsd.poll_freq);
         override_opt_field!(upsd_cfg.poll_interval, inner_value: upsd.poll_interval);
         override_opt_field!(upsd_cfg.port, inner_value: upsd.port);
+        override_opt_field!(upsd_cfg.row, inner_value: upsd.row);
         override_opt_field!(upsd_cfg.tls_mode, inner_value : upsd.tls_mode);
         override_opt_field!(upsd_cfg.user, upsd.username);
 

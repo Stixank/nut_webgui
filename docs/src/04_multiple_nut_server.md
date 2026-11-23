@@ -38,6 +38,7 @@ max_connection = 12
 poll_freq = 10
 poll_interval = 1
 tls_mode = "strict"
+row = 1
 
 # Connection with default values
 [upsd.haruna]
@@ -48,6 +49,7 @@ tls_mode = "strict"
 # poll_freq = 30
 # poll_interval = 2
 # tls_mode = "disable"
+# row = 0
 
 ## ... Other config.toml options ...
 ```
@@ -71,7 +73,8 @@ kirishima = {
   max_connection = 12,
   poll_freq = 10,
   poll_interval = 1,
-  tls_mode = "strict"
+  tls_mode = "strict",
+  row = 1
 }
 haruna = {}
 ```
