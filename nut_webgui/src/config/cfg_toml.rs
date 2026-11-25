@@ -46,6 +46,7 @@ pub struct UpsdConfigSection {
   pub username: Option<Box<str>>,
   pub max_connection: Option<NonZeroUsize>,
   pub tls_mode: Option<TlsMode>,
+  pub custom_clients: Option<BTreeSet<IpAddr>>,
   pub ignore_clients: Option<BTreeSet<IpAddr>>,
   pub row: Option<u16>,
   pub row_name: Option<Box<str>>,
@@ -137,6 +138,11 @@ impl ConfigLayer for ServerTomlArgs {
         override_opt_field!(upsd_cfg.row_name, upsd.row_name);
         override_opt_field!(upsd_cfg.tls_mode, inner_value : upsd.tls_mode);
         override_opt_field!(upsd_cfg.user, upsd.username);
+
+        override_opt_field!(
+          upsd_cfg.custom_clients,
+          inner_value: upsd.custom_clients.map(|val| val.into_iter().collect())
+        );
 
         match (upsd.ignore_clients, self.ignore_clients.as_ref()) {
           (None, Some(global)) => upsd_cfg.ignore_clients = global.iter().copied().collect(),

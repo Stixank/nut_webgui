@@ -86,6 +86,10 @@ pub struct UpsdConfig {
   /// UPSD specific client filter.
   pub ignore_clients: Box<[IpAddr]>,
 
+  /// Static clients which are shown as attached to every device of this UPSD,
+  /// although UPSD does not report them.
+  pub custom_clients: Box<[IpAddr]>,
+
   /// Row number of this UPSD in the topology view. UPSDs with the same row number are drawn
   /// side by side in one group, rows are drawn from the smallest number to the largest.
   /// Default is `0`.
@@ -109,6 +113,20 @@ impl AuthConfig {
 }
 
 impl UpsdConfig {
+  /// Combines clients reported by UPSD with `custom_clients`, and removes the
+  /// ignored and duplicate addresses.
+  pub fn merge_clients(&self, reported: Vec<IpAddr>) -> Vec<IpAddr> {
+    let mut clients = Vec::with_capacity(reported.len() + self.custom_clients.len());
+
+    for ip in reported.iter().chain(self.custom_clients.iter()) {
+      if !self.ignore_clients.contains(ip) && !clients.contains(ip) {
+        clients.push(*ip);
+      }
+    }
+
+    clients
+  }
+
   pub fn get_addr(&self) -> String {
     format!("{address}:{port}", address = self.addr, port = self.port)
   }
@@ -144,6 +162,7 @@ impl Default for UpsdConfig {
   fn default() -> Self {
     Self {
       addr: "localhost".into(),
+      custom_clients: Box::new([]),
       ignore_clients: Box::new([]),
       max_conn: NonZeroUsize::new(4).expect("static non-zero max_conn is provided as default"),
       pass: None,
@@ -200,6 +219,7 @@ impl core::fmt::Debug for UpsdConfig {
       .field("poll_interval", &self.poll_interval)
       .field("tls_mode", &self.tls_mode)
       .field("ignore_clients", &self.ignore_clients)
+      .field("custom_clients", &self.custom_clients)
       .field("pass", &self.pass.as_ref().map(|_| "******"))
       .field("user", &self.user.as_ref().map(|_| "******"))
       .field("row", &self.row)

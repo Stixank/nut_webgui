@@ -407,11 +407,7 @@ impl DeviceSyncTask {
     let client_list = state.connection_pool.list_client(ups_name).await?;
     let mut clients: Vec<ClientInfo> = Vec::with_capacity(client_list.ips.len());
 
-    for ip in client_list.ips.into_iter() {
-      if state.config.ignore_clients.contains(&ip) {
-        continue;
-      }
-
+    for ip in state.config.merge_clients(client_list.ips) {
       let name = if !ip.is_loopback() {
         lookup_ip(ip).map_or(None, |n| Some(n))
       } else {

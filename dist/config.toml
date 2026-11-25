@@ -173,6 +173,16 @@ version = "1"
 # ignore_clients = ["192.168.2.32", "2001:db8::1"]
 
 ## -----------------------------------------------------------------------------
+## Custom clients: Static IP addresses shown as attached clients of every device
+## on this UPSD, for hosts which cannot connect to upsd themselves. Only
+## nut_webgui is affected, `upsc -c` output stays the same.
+##
+## Addresses listed in ignore_clients are not shown.
+## -----------------------------------------------------------------------------
+
+# custom_clients = ["192.168.2.23"]
+
+## -----------------------------------------------------------------------------
 ## Row: Row number of this UPSD in the topology page. UPSDs with the same row
 ## number are drawn side by side inside one framed group, rows are drawn from
 ## the smallest number to the largest. Each row gets a `Row N` heading.
