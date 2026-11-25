@@ -207,6 +207,26 @@ UPSD connection is secured by TLS, and nut_webgui ignores any certificate
 verification issues. This option is only recommended for testing
 self-signed certificates.
 
+.SH TOPOLOGY ROWS
+.PP
+The topology page can draw
+.MR upsd 8
+servers in several rows. Each
+.I [upsd.<name>]
+section accepts the following options:
+.TP
+.BR row
+Row number of the server, default is
+.I 0.
+Servers with the same row number are drawn side by side inside one framed
+group. Rows are drawn from the smallest number to the largest.
+.TP
+.BR row_name
+Custom heading of the row. If it is not set, the heading is
+.I Row <row>.
+When servers in the same row set different names, the first one (ordered by
+server name) is used. Empty names are ignored.
+
 .SH LOG LEVELS
 .BR error,
 .BR warn,
