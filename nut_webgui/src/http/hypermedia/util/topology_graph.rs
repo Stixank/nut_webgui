@@ -37,6 +37,8 @@ pub struct TopologyGraph {
 /// UPSDs that share the same row number in the config. They are drawn side by side.
 pub struct TopologyRow {
   pub clusters: Vec<TopologyCluster>,
+  /// Custom row title from the UPSD configs. UI shows `Row <number>` if it's not set.
+  pub name: Option<Box<str>>,
   pub number: u16,
 }
 
@@ -127,6 +129,8 @@ pub struct NutServerNode {
   pub port: u16,
   /// Row number from the UPSD config.
   row: u16,
+  /// Custom row title from the UPSD config.
+  row_name: Option<Box<str>>,
   pub status: ConnectionStatus,
 }
 
@@ -170,6 +174,7 @@ impl TopologyGraphBuilder {
     address: Box<str>,
     port: u16,
     row: u16,
+    row_name: Option<Box<str>>,
     upsd_state: &DaemonState,
   ) {
     let mut server_node = NutServerNode {
@@ -178,6 +183,7 @@ impl TopologyGraphBuilder {
       namespace,
       port,
       row,
+      row_name: row_name.filter(|name| !name.trim().is_empty()),
       status: upsd_state.status,
       power_status: PowerStatusLevel::default(),
     };
@@ -237,11 +243,17 @@ impl TopologyGraphBuilder {
       if rows.last().is_none_or(|row| row.number != number) {
         rows.push(TopologyRow {
           clusters: Vec::new(),
+          name: None,
           number,
         });
       }
 
       if let Some(row) = rows.last_mut() {
+        // NOTE: First custom title in the row wins.
+        if row.name.is_none() {
+          row.name = cluster.server.row_name.clone();
+        }
+
         row.clusters.push(cluster);
       }
     }

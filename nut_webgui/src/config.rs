@@ -90,6 +90,10 @@ pub struct UpsdConfig {
   /// side by side in one group, rows are drawn from the smallest number to the largest.
   /// Default is `0`.
   pub row: u16,
+
+  /// Custom title of the row in the topology view. If UPSDs in the same row have different
+  /// titles, the first one (ordered by UPSD name) is used. Row heading is `Row <row>` if not set.
+  pub row_name: Option<Box<str>>,
 }
 
 #[derive(Debug)]
@@ -149,6 +153,7 @@ impl Default for UpsdConfig {
       tls_mode: TlsMode::Disable,
       user: None,
       row: 0,
+      row_name: None,
     }
   }
 }
@@ -198,6 +203,7 @@ impl core::fmt::Debug for UpsdConfig {
       .field("pass", &self.pass.as_ref().map(|_| "******"))
       .field("user", &self.user.as_ref().map(|_| "******"))
       .field("row", &self.row)
+      .field("row_name", &self.row_name)
       .finish()
   }
 }

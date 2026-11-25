@@ -27,12 +27,14 @@ poll_interval = 2
 tls_mode = "disable"
 ignore_clients = ["192.168.2.32", "2001:db8::1"]
 row = 0
+row_name = "Main building"
 
 [upsd.reactor]
 address = "10.0.12.10"
 username = "observer"
 password = "AbsoluteSecurity"
 row = 1
+row_name = "Reactor room"
 
 [auth]
 users_file = "/etc/nut_webgui/users.toml"

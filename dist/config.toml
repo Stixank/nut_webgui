@@ -183,3 +183,13 @@ version = "1"
 ## -----------------------------------------------------------------------------
 
 # row = 0
+
+## -----------------------------------------------------------------------------
+## Row name: Custom heading of the row on the topology page. If UPSDs in the
+## same row have different names, the first one (ordered by UPSD name) is used.
+## Default is `Row <row>`, for example `Row 0`.
+##
+## Example: `row_name = "Server room"` shows `Server room` instead of `Row 1`.
+## -----------------------------------------------------------------------------
+
+# row_name = "Server room"

@@ -39,6 +39,7 @@ poll_freq = 10
 poll_interval = 1
 tls_mode = "strict"
 row = 1
+row_name = "Server room"
 
 # Connection with default values
 [upsd.haruna]
@@ -50,6 +51,7 @@ row = 1
 # poll_interval = 2
 # tls_mode = "disable"
 # row = 0
+# row_name = "Row 0" # Row heading on the topology page, if not set it is `Row <row>`
 
 ## ... Other config.toml options ...
 ```
@@ -74,7 +76,8 @@ kirishima = {
   poll_freq = 10,
   poll_interval = 1,
   tls_mode = "strict",
-  row = 1
+  row = 1,
+  row_name = "Server room"
 }
 haruna = {}
 ```

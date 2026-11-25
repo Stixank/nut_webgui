@@ -202,7 +202,13 @@
         <nut-graph-row id="row_{{row_index}}">
           <nut-graph-heading>
             <div class="flex flex-row gap-4 items-center text-nowrap">
-              <span class="badge badge-primary badge-outline">Row {{row.number}}</span>
+              <span class="badge badge-primary badge-outline">
+                {%- if let Some(name) = row.name -%}
+                  {{name}}
+                {%- else -%}
+                  Row {{row.number}}
+                {%- endif -%}
+              </span>
             </div>
           </nut-graph-heading>
 

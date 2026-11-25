@@ -64,6 +64,7 @@ pub async fn get(
       upsd.config.addr.clone(),
       upsd.config.port,
       upsd.config.row,
+      upsd.config.row_name.clone(),
       state.deref(),
     );
   }
