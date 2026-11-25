@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - feature/topology-rows
+      - feature/custom-clients
     paths:
       - 'nut_webgui/**'
       - 'crates/**'
