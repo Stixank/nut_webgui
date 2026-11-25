@@ -2,7 +2,7 @@ use crate::{
   background_service::BackgroundService,
   event::{DeviceStatusChange, SystemEvent, batch::EventBatch, channel::EventChannel},
   state::{ClientInfo, UpsdState},
-  sync::reverse_dns::lookup_ip,
+  sync::{reachability::check_clients, reverse_dns::lookup_ip},
 };
 use chrono::Utc;
 use futures::{future::join_all, join};
@@ -221,15 +221,17 @@ impl StatusSyncTask {
     }
 
     let client = &self.state.connection_pool;
-    let responses = join_all(devices.iter().map(|device| async move {
+    let requests = join_all(devices.iter().map(|device| async move {
       join!(
         std::future::ready(device), // Passes device name to the join result for traceback
         client.list_var(device),
         client.list_client(device),
         client.list_cmd(device),
       )
-    }))
-    .await;
+    }));
+    // Runs along with the UPSD requests, and before taking the write lock.
+    let (responses, reachability) =
+      join!(requests, check_clients(&self.state.config.custom_clients));
 
     let mut events = EventBatch::new(self.state.namespace.clone());
 
@@ -311,6 +313,7 @@ impl StatusSyncTask {
               entry.attached.push(ClientInfo {
                 addr: *client_ip,
                 name: client_name,
+                online: None,
               });
 
               info!(
@@ -322,6 +325,10 @@ impl StatusSyncTask {
             }
 
             events.client_connection(name.clone(), client_diff.connected);
+          }
+
+          for client in entry.attached.iter_mut() {
+            client.online = reachability.get(&client.addr).copied();
           }
 
           let commands = commands

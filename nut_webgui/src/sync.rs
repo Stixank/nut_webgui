@@ -1,3 +1,4 @@
+mod reachability;
 mod reverse_dns;
 
 pub mod error;

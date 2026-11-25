@@ -1,6 +1,6 @@
 use super::{
-  ConfigLayer, ServerConfig, UpsdConfig, error::ConfigError, tls_mode::TlsMode, uri_path::UriPath,
-  utils::override_opt_field,
+  ConfigLayer, CustomClient, ServerConfig, UpsdConfig, error::ConfigError, tls_mode::TlsMode,
+  uri_path::UriPath, utils::override_opt_field,
 };
 use core::{net::IpAddr, str};
 use serde::{Deserialize, de::Visitor};
@@ -46,7 +46,7 @@ pub struct UpsdConfigSection {
   pub username: Option<Box<str>>,
   pub max_connection: Option<NonZeroUsize>,
   pub tls_mode: Option<TlsMode>,
-  pub custom_clients: Option<BTreeSet<IpAddr>>,
+  pub custom_clients: Option<BTreeSet<CustomClient>>,
   pub ignore_clients: Option<BTreeSet<IpAddr>>,
   pub row: Option<u16>,
   pub row_name: Option<Box<str>>,

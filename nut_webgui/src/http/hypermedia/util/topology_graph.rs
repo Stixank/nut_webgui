@@ -323,13 +323,13 @@ impl TopologyGraphBuilder {
             )
           };
 
-          self.add_edge(
-            node_id,
-            target_id,
-            EdgeType::Power,
-            device_node.power_status.into(),
-            AnimateType::Flow,
-          );
+          let (semantic_type, animate) = if client.is_offline() {
+            (SemanticType::Error, AnimateType::Pulse)
+          } else {
+            (device_node.power_status.into(), AnimateType::Flow)
+          };
+
+          self.add_edge(node_id, target_id, EdgeType::Power, semantic_type, animate);
         }
 
         self.devices.insert(key, device_node);

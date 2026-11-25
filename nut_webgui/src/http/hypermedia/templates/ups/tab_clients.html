@@ -39,6 +39,9 @@
               <div class="font-bold text-primary">{{client.addr}}</div>
             {%- endif -%}
           </div>
+          {%- if client.is_offline() -%}
+            <div class="badge badge-error content-center">Unreachable</div>
+          {%- endif -%}
         </li>
       {%- endfor -%}
     </nut-search-list>

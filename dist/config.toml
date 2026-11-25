@@ -177,10 +177,15 @@ version = "1"
 ## on this UPSD, for hosts which cannot connect to upsd themselves. Only
 ## nut_webgui is affected, `upsc -c` output stays the same.
 ##
+## Format is "ip:port" (IPv6: "[ip]:port"). Every poll_freq seconds nut_webgui
+## opens a TCP connection to the port, and marks the client as unreachable if
+## the host does not respond. A refused connection counts as a response. Without
+## a port the client is not checked.
+##
 ## Addresses listed in ignore_clients are not shown.
 ## -----------------------------------------------------------------------------
 
-# custom_clients = ["192.168.2.23"]
+# custom_clients = ["192.168.2.23:22"]
 
 ## -----------------------------------------------------------------------------
 ## Row: Row number of this UPSD in the topology page. UPSDs with the same row

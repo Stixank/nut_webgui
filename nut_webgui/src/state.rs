@@ -107,6 +107,14 @@ pub struct DeviceEntry {
 pub struct ClientInfo {
   pub addr: IpAddr,
   pub name: Option<Box<str>>,
+  /// Result of the reachability check, `None` if the client is not checked.
+  pub online: Option<bool>,
+}
+
+impl ClientInfo {
+  pub fn is_offline(&self) -> bool {
+    self.online == Some(false)
+  }
 }
 
 #[derive(Debug, Clone)]

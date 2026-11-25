@@ -98,4 +98,4 @@ jobs:
       - name: Run config unit tests
         env:
           npm_config_legacy_peer_deps: "true"
-        run: "cargo test -p nut_webgui config::"
+        run: "cargo test -p nut_webgui -- config:: sync::reachability::"

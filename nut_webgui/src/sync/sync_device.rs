@@ -414,7 +414,11 @@ impl DeviceSyncTask {
         None
       };
 
-      clients.push(ClientInfo { addr: ip, name })
+      clients.push(ClientInfo {
+        addr: ip,
+        name,
+        online: None,
+      })
     }
 
     Ok(clients)

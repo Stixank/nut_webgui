@@ -1,7 +1,11 @@
 use self::{
   error::ConfigError, tls_mode::TlsMode, uri_path::UriPath, utils::rand_server_key_256bit,
 };
-use core::net::{IpAddr, Ipv4Addr};
+use core::{
+  net::{IpAddr, Ipv4Addr, SocketAddr},
+  str::FromStr,
+};
+use serde::Deserialize;
 use std::{collections::HashMap, num::NonZeroUsize, path::PathBuf};
 use tracing::level_filters::LevelFilter;
 
@@ -88,7 +92,7 @@ pub struct UpsdConfig {
 
   /// Static clients which are shown as attached to every device of this UPSD,
   /// although UPSD does not report them.
-  pub custom_clients: Box<[IpAddr]>,
+  pub custom_clients: Box<[CustomClient]>,
 
   /// Row number of this UPSD in the topology view. UPSDs with the same row number are drawn
   /// side by side in one group, rows are drawn from the smallest number to the largest.
@@ -98,6 +102,14 @@ pub struct UpsdConfig {
   /// Custom title of the row in the topology view. If UPSDs in the same row have different
   /// titles, the first one (ordered by UPSD name) is used. Row heading is `Row <row>` if not set.
   pub row_name: Option<Box<str>>,
+}
+
+/// A static client from the config: `ip:port` or just `ip`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct CustomClient {
+  pub addr: IpAddr,
+  /// TCP port for the reachability check, the client is not checked without it.
+  pub port: Option<u16>,
 }
 
 #[derive(Debug)]
@@ -118,7 +130,9 @@ impl UpsdConfig {
   pub fn merge_clients(&self, reported: Vec<IpAddr>) -> Vec<IpAddr> {
     let mut clients = Vec::with_capacity(reported.len() + self.custom_clients.len());
 
-    for ip in reported.iter().chain(self.custom_clients.iter()) {
+    let custom = self.custom_clients.iter().map(|client| &client.addr);
+
+    for ip in reported.iter().chain(custom) {
       if !self.ignore_clients.contains(ip) && !clients.contains(ip) {
         clients.push(*ip);
       }
@@ -135,6 +149,36 @@ impl UpsdConfig {
 impl HttpServerConfig {
   pub fn get_listen_addr(&self) -> String {
     format!("{ip}:{port}", ip = self.listen, port = self.port)
+  }
+}
+
+impl FromStr for CustomClient {
+  type Err = String;
+
+  fn from_str(value: &str) -> Result<Self, Self::Err> {
+    if let Ok(socket) = value.parse::<SocketAddr>() {
+      Ok(Self {
+        addr: socket.ip(),
+        port: Some(socket.port()),
+      })
+    } else if let Ok(addr) = value.parse::<IpAddr>() {
+      Ok(Self { addr, port: None })
+    } else {
+      Err(format!(
+        "invalid client address '{value}', expected 'ip:port' or 'ip'"
+      ))
+    }
+  }
+}
+
+impl<'de> Deserialize<'de> for CustomClient {
+  fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+  where
+    D: serde::Deserializer<'de>,
+  {
+    String::deserialize(deserializer)?
+      .parse()
+      .map_err(serde::de::Error::custom)
   }
 }
 
@@ -240,5 +284,81 @@ impl core::fmt::Debug for ServerConfig {
       .field("server_key", &"******")
       .field("upsd", &self.upsd)
       .finish()
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::{CustomClient, UpsdConfig, cfg_toml::ServerTomlArgs};
+  use core::net::IpAddr;
+
+  fn ip(value: &str) -> IpAddr {
+    value.parse().unwrap()
+  }
+
+  fn client(value: &str) -> CustomClient {
+    value.parse().unwrap()
+  }
+
+  #[test]
+  fn custom_client_formats() {
+    assert_eq!(
+      client("192.168.2.23:22"),
+      CustomClient {
+        addr: ip("192.168.2.23"),
+        port: Some(22)
+      }
+    );
+    assert_eq!(
+      client("[2001:db8::1]:443"),
+      CustomClient {
+        addr: ip("2001:db8::1"),
+        port: Some(443)
+      }
+    );
+    assert_eq!(
+      client("2001:db8::1"),
+      CustomClient {
+        addr: ip("2001:db8::1"),
+        port: None
+      }
+    );
+    assert!("192.168.2.23:99999".parse::<CustomClient>().is_err());
+    assert!("netapp:22".parse::<CustomClient>().is_err());
+  }
+
+  #[test]
+  fn custom_clients_from_toml() {
+    let args: ServerTomlArgs = toml::from_str(
+      r#"
+        [upsd.ippon]
+        custom_clients = ["192.168.2.23:22", "192.168.2.24"]
+      "#,
+    )
+    .unwrap();
+    let clients = args.upsd.unwrap()["ippon"].custom_clients.clone().unwrap();
+
+    assert_eq!(
+      clients.into_iter().collect::<Vec<_>>(),
+      vec![client("192.168.2.23:22"), client("192.168.2.24")]
+    );
+  }
+
+  #[test]
+  fn merge_clients_removes_ignored_and_duplicates() {
+    let config = UpsdConfig {
+      custom_clients: Box::new([
+        client("10.0.0.1:22"),
+        client("10.0.0.2:22"),
+        client("10.0.0.9"),
+      ]),
+      ignore_clients: Box::new([ip("10.0.0.9")]),
+      ..Default::default()
+    };
+
+    assert_eq!(
+      config.merge_clients(vec![ip("10.0.0.1"), ip("10.0.0.9")]),
+      vec![ip("10.0.0.1"), ip("10.0.0.2")]
+    );
   }
 }
